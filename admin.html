@@ -549,17 +549,23 @@
             document.getElementById('login-password').value = '';
         }
 
+        // 修改：向新的 get-ab API 端點索取最新資料，而不是快取的靜態檔案
         async function fetchOnlinePosts() {
             try {
-                const res = await fetch('/ab.json?t=' + Date.now());
+                // 如果已經實作 get-ab.js，這裡會請求最新資料
+                const res = await fetch('/api/get-ab?t=' + Date.now());
                 if (res.ok) {
                     const onlinePosts = await res.json();
                     state.posts = onlinePosts;
-                    savePostsToStorage();
+                    // 將新抓取的資料快取回 local
+                    localStorage.setItem('cy_ab_json', JSON.stringify(state.posts));
                     renderPosts();
+                } else {
+                    console.warn('API 回傳非 200，暫不覆寫畫面');
                 }
             } catch (err) {
-                console.warn('無法連線取得線上 ab.json，暫時顯示本地資料:', err);
+                console.warn('無法連線取得線上 /api/get-ab，暫時顯示本地資料:', err);
+                // 讀取不到就繼續用原本 state 裡的
             }
         }
 
@@ -622,7 +628,6 @@
                         <span>${new Date(post.timestamp).toLocaleDateString()}</span>
                         
                         <div class="flex items-center gap-1">
-                            <!-- 統一改為傳遞 index -->
                             <button onclick="openPostDetail(${index})" title="詳細內容" class="p-2 hover:bg-slate-700 rounded-lg text-slate-300 hover:text-white transition-all">
                                 內容
                             </button>
@@ -641,7 +646,8 @@
             `).join('');
         }
 
-        function deletePost(index) {
+        // 修改：單筆刪除加入等待 (await) 與失敗復原機制
+        async function deletePost(index) {
             const targetPost = state.posts[index];
             if (targetPost) {
                 const logItem = state.ipLogs.find(log => log.secret_id === targetPost.secret_id);
@@ -651,15 +657,30 @@
                 }
             }
 
+            // 備份資料以便失敗時復原
+            const backupPosts = JSON.parse(JSON.stringify(state.posts));
+
             state.posts.splice(index, 1);
             state.posts = state.posts.map((post, i) => {
                 post.id = '#CY' + String(i + 1).padStart(3, '0');
                 return post;
             });
 
-            savePostsToStorage();
+            // 先更新畫面，讓使用者感覺有反應
             renderPosts();
-            showNotice('已刪除貼文', '投稿已刪除，後續貼文編號已自動遞補向前！IP 與投稿內容仍獨立存檔於 ak.json。');
+
+            // 等待後端 API 儲存結果
+            showNotice('處理中', '正在刪除並同步至伺服器...');
+            const isSuccess = await savePostsToStorage();
+            
+            if (isSuccess) {
+                showNotice('已刪除貼文', '投稿已成功從伺服器端刪除，後續貼文編號已自動遞補！');
+            } else {
+                // 如果後端儲存失敗，把畫面上的資料還原
+                state.posts = backupPosts;
+                renderPosts();
+                showNotice('刪除失敗', '無法修改伺服器上的資料！請確認後端 API 是否正常運作。');
+            }
         }
 
         function confirmDeleteAllPosts() {
@@ -670,7 +691,10 @@
             openModal('modal-confirm-delete-all');
         }
 
-        function deleteAllPosts() {
+        // 修改：全部刪除加入等待 (await) 與失敗復原機制
+        async function deleteAllPosts() {
+            const backupPosts = JSON.parse(JSON.stringify(state.posts));
+
             state.posts.forEach(post => {
                 const logItem = state.ipLogs.find(log => log.secret_id === post.secret_id);
                 if (logItem) logItem.status = '貼文已刪除 (IP留存中)';
@@ -688,15 +712,24 @@
 
             localStorage.setItem('cy_mock_count', maxCount.toString());
             state.posts = [];
-            savePostsToStorage();
-            renderPosts();
+            
             closeModal('modal-confirm-delete-all');
+            renderPosts(); // 暫時渲染
 
-            const nextNumStr = '#CY' + String(maxCount + 1).padStart(3, '0');
-            showNotice('全部刪除成功', `所有投稿已被清空！IP 與投稿紀錄已完整留存於 ak.json。下一次投稿將從 ${nextNumStr} 接續發布。`);
+            // 等待後端 API 儲存結果
+            showNotice('處理中', '正在清空並同步至伺服器...');
+            const isSuccess = await savePostsToStorage();
+
+            if (isSuccess) {
+                const nextNumStr = '#CY' + String(maxCount + 1).padStart(3, '0');
+                showNotice('全部刪除成功', `所有投稿已被清空並同步至後端！下一次投稿將從 ${nextNumStr} 接續發布。`);
+            } else {
+                state.posts = backupPosts;
+                renderPosts();
+                showNotice('清空失敗', '無法清空伺服器上的資料，請檢查後端 API 設定。');
+            }
         }
 
-        // 修改：使用 index 讀取，避免引號衝突
         function openPostDetail(index) {
             const post = state.posts[index];
             document.getElementById('detail-cy-id').textContent = post.id;
@@ -708,7 +741,6 @@
             openModal('modal-post-detail');
         }
 
-        // 修改：使用 index 讀取內容複製
         function copyToClipboard(index) {
             const text = state.posts[index].content;
             const textarea = document.createElement('textarea');
@@ -724,7 +756,6 @@
             document.body.removeChild(textarea);
         }
 
-        // 修改：使用 index 讀取以產生圖卡
         function exportPostCard(index) {
             const post = state.posts[index];
             currentActiveCardPost = post;
@@ -1083,20 +1114,24 @@
             showNotice('系統提示', '功能尚未完成，敬請期待未來版本更新！');
         }
 
-        // 修改：加入 async / await 以在儲存時呼叫後端 API
+        // 修改：加入 await 並回傳 true/false，讓前端能確認後端寫入狀態
         async function savePostsToStorage() {
-            // 寫入本地緩存
             localStorage.setItem('cy_ab_json', JSON.stringify(state.posts));
             
-            // 將更新後的陣列發送至後端儲存
             try {
-                await fetch('/api/update-ab', {
+                const response = await fetch('/api/update-ab', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(state.posts)
                 });
+
+                if (!response.ok) {
+                    throw new Error('伺服器回傳狀態異常');
+                }
+                return true; 
             } catch (error) {
-                console.warn('同步至後端 ab.json 失敗 (若為純前端預覽可忽略此警告):', error);
+                console.warn('同步至伺服器失敗:', error);
+                return false; 
             }
         }
 
