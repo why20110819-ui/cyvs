@@ -4,5 +4,11 @@
     "password": "YME.2011",
     "isSuper": true,
     "isDefault": false
+  },
+  {
+    "username": "ADMIN",
+    "password": "YME.2011",
+    "isSuper": false,
+    "isDefault": false
   }
 ]
