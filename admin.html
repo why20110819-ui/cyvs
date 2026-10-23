@@ -931,7 +931,7 @@
             try {
                 const response = await fetch('/api/upload-ig', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: authHeaders(),
                     body: JSON.stringify({ imageUrl, caption })
                 });
 
