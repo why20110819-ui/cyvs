@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>匿名啟英 CY 投稿系統</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f1f5f9;
+            color: #1e293b;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #e2e8f0;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #94a3b8;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease-in-out forwards;
+        }
+        .pop-in {
+            animation: popIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes popIn {
+            from { opacity: 0; transform: scale(0.95) translateY(10px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 bg-slate-100 text-slate-800 antialiased selection:bg-blue-500 selection:text-white">
+
+    <!-- Main Interface (Hidden Initially) -->
+    <main id="main-interface" class="w-full max-w-lg bg-white border border-slate-200/80 rounded-3xl shadow-xl overflow-hidden hidden flex-col transition-all duration-300">
+        <div class="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-center">
+            <div class="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center mx-auto mb-2 font-black text-white text-xl border border-white/30 shadow-md">
+                CY
+            </div>
+            <h1 class="text-xl md:text-2xl font-bold text-white tracking-wide">匿名啟英 CY 投稿系統</h1>
+            <p class="text-blue-100 text-xs sm:text-sm mt-1">學生自研平台 · 完全匿名 protection</p>
+        </div>
+
+        <div class="p-6 flex flex-col gap-4">
+            <div class="relative">
+                <label for="submission-content" class="block text-sm font-semibold text-slate-700 mb-2">請輸入您的投稿內容：</label>
+                <textarea id="submission-content" 
+                    class="w-full h-48 p-4 bg-slate-50 border border-slate-200 rounded-2xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder-slate-400 text-slate-800 leading-relaxed text-sm sm:text-base"
+                    placeholder="想說些什麼嗎？寫下你的想法... (最多 300 字)"
+                    maxlength="300"></textarea>
+                
+                <div class="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-lg text-xs font-mono font-medium text-slate-500 border border-slate-200 shadow-sm pointer-events-none">
+                    <span id="char-counter" class="text-blue-600 font-bold">0</span> / 300
+                </div>
+            </div>
+
+            <div class="bg-blue-50 text-blue-900 text-xs p-3.5 rounded-xl flex items-start gap-2.5 border border-blue-100 leading-relaxed">
+                <svg class="w-4 h-4 mt-0.5 shrink-0 text-blue-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
+                <p>系統已開啟防護機制，請尊重他人，勿發表公然侮辱、誹謗或違法之內容。</p>
+            </div>
+
+            <button id="btn-submit" class="w-full mt-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-3.5 px-6 rounded-2xl active:scale-[0.98] transition-all flex justify-center items-center gap-2 shadow-lg shadow-blue-600/20 text-base">
+                <span>確認匿名投稿</span>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+            </button>
+        </div>
+    </main>
+
+    <!-- Modal Overlay -->
+    <div id="modal-overlay" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-opacity duration-300">
+        
+        <!-- Modal 1: System Announcement -->
+        <div id="modal-announcement" class="w-full max-w-md bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] pop-in">
+            <div class="bg-amber-500/10 p-5 text-amber-800 border-b border-amber-100 flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0 border border-amber-500/30">
+                    <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 58a1 1 0 01-2 0v-3a1 1 0 011-1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9zM11 11a1 1 0 100-2 1 1 0 000 2zm-1 4a1 1 0 00-1 1v3a1 1 0 002 0v-3a1 1 0 00-1-1z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15.536a5 5 0 000-7.072m-2.828 9.9a9 9 0 010-12.728"></path></svg>
+                </div>
+                <div>
+                    <h2 class="text-base font-bold text-slate-900">平台最新公告</h2>
+                    <p class="text-xs text-slate-500">請仔細閱讀下方公告內容</p>
+                </div>
+            </div>
+            
+            <div class="p-6 flex-1 overflow-y-auto text-slate-700 text-sm space-y-4 leading-relaxed" id="content-announcement">
+                <div class="text-center py-6 text-slate-400">
+                    <p class="animate-pulse">正在載入最新公告...</p>
+                </div>
+            </div>
+            
+            <div class="p-4 bg-slate-50 border-t border-slate-200 flex flex-col items-center">
+                <span id="hint-announcement" class="text-xs text-slate-500 mb-2 font-medium">請滑動至底部解鎖按鈕</span>
+                <button id="btn-accept-announcement" disabled class="w-full bg-slate-200 text-slate-400 font-bold py-3.5 rounded-xl disabled:opacity-70 disabled:cursor-not-allowed hover:bg-amber-500 hover:text-white transition-all text-sm">
+                    我已知道詳閱
+                </button>
+            </div>
+        </div>
+
+        <!-- Modal 2: Legal Declaration -->
+        <div id="modal-legal" class="w-full max-w-md bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden hidden flex-col max-h-[85vh]">
+            <div class="bg-blue-500/10 p-5 text-blue-800 border-b border-blue-100 flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center shrink-0 border border-blue-500/30">
+                    <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                </div>
+                <div>
+                    <h2 class="text-base font-bold text-slate-900">隱私與法律聲明條款</h2>
+                    <p class="text-xs text-slate-500">請詳閱投稿規範</p>
+                </div>
+            </div>
+            
+            <div class="p-6 flex-1 overflow-y-auto text-slate-700 text-sm space-y-5 leading-relaxed" id="content-legal">
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                    <h3 class="font-bold text-blue-700 text-base">【保護投稿人隱私】</h3>
+                    <p class="text-xs sm:text-sm text-slate-600">本平台依《個人資料保護法》第19條規定，基於網路服務管理之特定目的，於投稿時僅自動蒐集「必要之 IP 位址紀錄」。該紀錄屬於《個資法》第2條所定義之個人資料。除法律另有規定外，我們承諾絕不對外公開，確保您在前台呈現完全匿名。</p>
+                </div>
+                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                    <h3 class="font-bold text-rose-600 text-base">【保護被投稿人權益】</h3>
+                    <p class="text-xs sm:text-sm text-slate-600">為防止惡意造謠、誹謗或恐嚇等違法行為侵犯他人權益。若投稿內容涉嫌觸犯《刑法》第310條（誹謗罪）、第309條（公然侮辱罪）等情事，遭被害人依法報警追究時，本平台將在收到檢警機關合法之調取票或公文（包含學校正式公文）後，依法配合提供 IP 位址協助司法調查。</p>
+                </div>
+            </div>
+            
+            <div class="p-4 bg-slate-50 border-t border-slate-200 flex flex-col items-center">
+                <span id="hint-legal" class="text-xs text-slate-500 mb-2 font-medium">請滑動至底部解鎖按鈕</span>
+                <button id="btn-accept-legal" disabled class="w-full bg-slate-200 text-slate-400 font-bold py-3.5 rounded-xl disabled:opacity-70 disabled:cursor-not-allowed hover:bg-blue-600 hover:text-white transition-all text-sm">
+                    同意條款並開始投稿
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div id="modal-success" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[60] hidden items-center justify-center p-4">
+        <div class="bg-white border border-slate-200 p-6 sm:p-8 rounded-3xl shadow-2xl max-w-sm w-full text-center pop-in space-y-4">
+            <div class="w-16 h-16 bg-emerald-100 border border-emerald-200 rounded-2xl flex items-center justify-center mx-auto text-emerald-600">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
+            </div>
+            <div>
+                <h2 class="text-xl font-bold text-slate-900">投稿成功</h2>
+                <p class="text-xs text-slate-500 mt-1">請等待管理員審核與更新</p>
+            </div>
+            
+            <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                <p id="success-id-display" class="text-base font-mono font-bold text-blue-600">編號 #CY000</p>
+            </div>
+
+            <button id="btn-close-success" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl active:scale-95 transition-all text-sm shadow-lg shadow-blue-600/20">
+                確認並返回
+            </button>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-[70] bg-rose-600 text-white border border-rose-500/30 px-6 py-3 rounded-2xl shadow-xl text-sm font-medium transition-all duration-300 opacity-0 pointer-events-none transform -translate-y-10 max-w-xs sm:max-w-md text-center">
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const els = {
+                overlay: document.getElementById('modal-overlay'),
+                modAnnounce: document.getElementById('modal-announcement'),
+                cntAnnounce: document.getElementById('content-announcement'),
+                btnAnnounce: document.getElementById('btn-accept-announcement'),
+                hntAnnounce: document.getElementById('hint-announcement'),
+                modLegal: document.getElementById('modal-legal'),
+                cntLegal: document.getElementById('content-legal'),
+                btnLegal: document.getElementById('btn-accept-legal'),
+                hntLegal: document.getElementById('hint-legal'),
+                mainInterface: document.getElementById('main-interface'),
+                textarea: document.getElementById('submission-content'),
+                charCounter: document.getElementById('char-counter'),
+                btnSubmit: document.getElementById('btn-submit'),
+                modSuccess: document.getElementById('modal-success'),
+                successIdDisplay: document.getElementById('success-id-display'),
+                btnCloseSuccess: document.getElementById('btn-close-success'),
+                toast: document.getElementById('toast')
+            };
+
+            const SENSITIVE_WORDS = ['髒話', '去死', '笨蛋', '智障', '垃圾', '幹', '機掰', '靠北', '三小'];
+            const SCROLL_TOLERANCE = 15;
+
+            function checkScrollUnlock(container, button, hint) {
+                if (!container || !button) return;
+                if (container.scrollHeight <= container.clientHeight + SCROLL_TOLERANCE) {
+                    unlockButton(button, hint);
+                    return;
+                }
+                const scrollBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+                if (scrollBottom <= SCROLL_TOLERANCE) {
+                    unlockButton(button, hint);
+                }
+            }
+
+            function unlockButton(button, hint) {
+                button.disabled = false;
+                button.className = button.id === 'btn-accept-announcement' 
+                    ? "w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3.5 rounded-xl transition-all text-sm cursor-pointer shadow-lg shadow-amber-500/20"
+                    : "w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl transition-all text-sm cursor-pointer shadow-lg shadow-blue-600/20";
+                
+                hint.textContent = "✓ 已滑動至最底部，請點擊按鈕繼續";
+                hint.classList.add('text-emerald-600');
+                hint.classList.remove('text-slate-500');
+            }
+
+            function initScrollLogic(container, button, hint) {
+                setTimeout(() => checkScrollUnlock(container, button, hint), 150);
+                container.addEventListener('scroll', () => {
+                    if (button.disabled) checkScrollUnlock(container, button, hint);
+                });
+                window.addEventListener('resize', () => {
+                    if (button.disabled && container.offsetParent !== null) checkScrollUnlock(container, button, hint);
+                });
+            }
+
+            async function loadAnnouncement() {
+                try {
+                    const res = await fetch('aa.json?t=' + Date.now());
+                    if (!res.ok) throw new Error('aa.json not found');
+                    const data = await res.json();
+                    
+                    if (typeof data === 'object' && data.content) {
+                        els.cntAnnounce.innerHTML = data.content;
+                    } else if (typeof data === 'string') {
+                        els.cntAnnounce.innerHTML = data;
+                    } else {
+                        els.cntAnnounce.innerHTML = `<p class="font-bold text-base text-amber-700">歡迎使用匿名啟英 CY</p><p>${JSON.stringify(data)}</p>`;
+                    }
+                } catch (err) {
+                    els.cntAnnounce.innerHTML = `
+                        <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                            <p class="font-bold text-amber-700 text-base">【平台最新公告】</p>
+                            <p class="text-slate-700">歡迎來到匿名啟英 CY 學生自研投稿平台！</p>
+                            <ul class="list-disc pl-5 space-y-1 text-xs text-slate-600">
+                                <li>全平台響應式設計，支援手機與電腦瀏覽。</li>
+                                <li>自動化敏感詞彙過濾與個人隱私防護。</li>
+                            </ul>
+                        </div>
+                    `;
+                }
+                initScrollLogic(els.cntAnnounce, els.btnAnnounce, els.hntAnnounce);
+            }
+
+            loadAnnouncement();
+
+            els.btnAnnounce.addEventListener('click', () => {
+                els.modAnnounce.classList.add('hidden');
+                els.modLegal.classList.remove('hidden');
+                els.modLegal.classList.add('flex', 'pop-in');
+                initScrollLogic(els.cntLegal, els.btnLegal, els.hntLegal);
+            });
+
+            els.btnLegal.addEventListener('click', () => {
+                els.overlay.classList.add('opacity-0');
+                setTimeout(() => {
+                    els.overlay.classList.add('hidden');
+                    els.mainInterface.classList.remove('hidden');
+                    els.mainInterface.classList.add('flex', 'fade-in');
+                }, 300);
+            });
+
+            els.textarea.addEventListener('input', (e) => {
+                const length = e.target.value.length;
+                els.charCounter.textContent = length;
+                if (length >= 300) els.charCounter.classList.add('text-rose-400');
+                else els.charCounter.classList.remove('text-rose-400');
+            });
+
+            function showToast(msg) {
+                els.toast.textContent = msg;
+                els.toast.classList.remove('opacity-0', '-translate-y-10');
+                els.toast.classList.add('opacity-100', 'translate-y-0');
+                setTimeout(() => {
+                    els.toast.classList.remove('opacity-100', 'translate-y-0');
+                    els.toast.classList.add('opacity-0', '-translate-y-10');
+                }, 3000);
+            }
+
+            function sanitizeHtml(str) {
+                return str.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            }
+
+            function generateSecretId() {
+                return Math.floor(Math.random() * 16777215).toString(16).toUpperCase().padStart(6, '0');
+            }
+
+            async function fetchUserIP() {
+                try {
+                    const res = await fetch('https://api.ipify.org?format=json');
+                    if (res.ok) {
+                        const data = await res.json();
+                        return data.ip || 'Unknown';
+                    }
+                } catch (e) {}
+                return '127.0.0.1';
+            }
+
+            els.btnSubmit.addEventListener('click', async () => {
+                const rawText = els.textarea.value.trim();
+
+                if (!rawText) {
+                    showToast('請輸入投稿內容！');
+                    return;
+                }
+
+                const containsSensitive = SENSITIVE_WORDS.some(word => rawText.includes(word));
+                if (containsSensitive) {
+                    showToast('內容包含敏感或不當詞彙，請修改後再試！');
+                    return;
+                }
+
+                const originalBtnContent = els.btnSubmit.innerHTML;
+                els.btnSubmit.disabled = true;
+                els.btnSubmit.innerHTML = `
+                    <div class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    <span>資料處理中...</span>
+                `;
+
+                try {
+                    const userIP = await fetchUserIP();
+                    const userAgent = navigator.userAgent;
+                    const postCount = parseInt(localStorage.getItem('cy_mock_count') || '0') + 1;
+                    localStorage.setItem('cy_mock_count', postCount.toString());
+
+                    const postId = '#CY' + String(postCount).padStart(3, '0');
+                    const secretId = generateSecretId();
+                    const cleanContent = sanitizeHtml(rawText);
+
+                    const payload = {
+                        id: postId,
+                        secret_id: secretId,
+                        content: cleanContent,
+                        ip: `${userIP} (${userAgent})`,
+                        timestamp: new Date().toISOString()
+                    };
+
+                    await saveToGitHub(payload);
+
+                    els.successIdDisplay.textContent = `投稿識別碼 ${postId}`;
+                    els.modSuccess.classList.remove('hidden');
+                    els.modSuccess.classList.add('flex');
+
+                    els.textarea.value = '';
+                    els.charCounter.textContent = '0';
+
+                } catch (err) {
+                    console.error('Submission failed:', err);
+                    showToast('投稿發送失敗：' + err.message);
+                } finally {
+                    els.btnSubmit.disabled = false;
+                    els.btnSubmit.innerHTML = originalBtnContent;
+                }
+            });
+
+            async function saveToGitHub(payload) {
+                const res = await fetch('/api/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    throw new Error(data.error || '投稿寫入失敗');
+                }
+
+                const existingPosts = JSON.parse(localStorage.getItem('cy_ab_json') || '[]');
+                existingPosts.unshift(payload);
+                localStorage.setItem('cy_ab_json', JSON.stringify(existingPosts));
+
+                return true;
+            }
+
+            els.btnCloseSuccess.addEventListener('click', () => {
+                els.modSuccess.classList.add('hidden');
+                els.modSuccess.classList.remove('flex');
+            });
+        });
+    </script>
+</body>
+</html>

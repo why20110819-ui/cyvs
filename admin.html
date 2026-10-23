@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>匿名啟英 CY - 後台管理系統</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+
+        .modal-fade {
+            animation: modalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: scale(0.96); }
+            to { opacity: 1; transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-slate-900 text-slate-100 antialiased selection:bg-blue-500 selection:text-white">
+
+    <!-- LOGIN SCREEN -->
+    <div id="screen-login" class="min-h-screen flex items-center justify-center p-4">
+        <div class="w-full max-w-md bg-slate-800 border border-slate-700 rounded-2xl p-8 shadow-2xl modal-fade">
+            <div class="text-center mb-8">
+                <div class="inline-flex items-center justify-center w-16 h-16 bg-blue-600/20 text-blue-400 rounded-2xl mb-3 border border-blue-500/30">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                </div>
+                <h1 class="text-2xl font-bold text-white tracking-wide">匿名啟英 CY</h1>
+                <p class="text-slate-400 text-sm mt-1">後台控制與審核管理系統</p>
+            </div>
+
+            <form id="form-login" onsubmit="event.preventDefault(); handleLogin();" class="space-y-5">
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">管理員帳號</label>
+                    <input type="text" id="login-username" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" placeholder="請輸入帳號">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">登入密碼</label>
+                    <input type="password" id="login-password" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" placeholder="請輸入密碼">
+                </div>
+
+                <div id="login-error" class="hidden text-rose-400 text-xs bg-rose-500/10 border border-rose-500/20 p-3 rounded-lg text-center font-medium">
+                    帳號或密碼錯誤
+                </div>
+
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-blue-600/30 transition-all active:scale-[0.98]">
+                    安全登入
+                </button>
+            </form>
+            <div class="mt-6 text-center text-xs text-slate-500">
+                初始預設帳號: <code class="text-slate-300">cvysF133</code>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN DASHBOARD SCREEN -->
+    <div id="screen-dashboard" class="hidden min-h-screen flex flex-col md:flex-row">
+        
+        <!-- Sidebar Navigation -->
+        <aside class="w-full md:w-64 bg-slate-800 border-r border-slate-700 flex-shrink-0 flex flex-col">
+            <div class="p-6 border-b border-slate-700/80 flex items-center justify-between">
+                <div>
+                    <h2 class="font-bold text-lg text-white">匿名啟英 CY</h2>
+                    <span class="text-xs text-emerald-400 flex items-center gap-1.5 mt-0.5">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        後台系統運行中
+                    </span>
+                </div>
+            </div>
+
+            <div class="px-6 py-3 bg-slate-900/50 border-b border-slate-700/50 text-xs text-slate-400 flex items-center justify-between">
+                <span>當前登入者：</span>
+                <span id="current-user-badge" class="font-mono text-blue-400 font-bold"></span>
+            </div>
+
+            <nav class="flex-1 p-4 space-y-1.5 overflow-y-auto">
+                <button onclick="switchTab('posts')" id="nav-posts" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-300 hover:bg-slate-700/50 hover:text-white transition-all">
+                    <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"></path></svg>
+                    投稿審核管理
+                </button>
+
+                <button onclick="switchTab('announcement')" id="nav-announcement" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-300 hover:bg-slate-700/50 hover:text-white transition-all">
+                    <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 58a1 1 0 01-2 0v-3a1 1 0 011-1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9zM11 11a1 1 0 100-2 1 1 0 000 2zm-1 4a1 1 0 00-1 1v3a1 1 0 002 0v-3a1 1 0 00-1-1z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15.536a5 5 0 000-7.072m-2.828 9.9a9 9 0 010-12.728"></path></svg>
+                    修改系統公告
+                </button>
+
+                <button onclick="switchTab('admins')" id="nav-admins" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-300 hover:bg-slate-700/50 hover:text-white transition-all">
+                    <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                    管理員帳密權限
+                </button>
+
+                <button onclick="triggerIncompleteModal()" id="nav-archive" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-300 hover:bg-slate-700/50 hover:text-white transition-all">
+                    <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v1a2 2 0 01-2 2M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>
+                    貼文封存區
+                </button>
+
+                <button onclick="switchTab('ip-logs')" id="nav-ip-logs" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-300 hover:bg-slate-700/50 hover:text-white transition-all">
+                    <svg class="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                    IP 紀錄與稽核
+                </button>
+            </nav>
+
+            <div class="p-4 border-t border-slate-700">
+                <button onclick="logout()" class="w-full flex items-center justify-center gap-2 bg-slate-700 hover:bg-rose-600/80 text-white font-medium py-2.5 px-4 rounded-xl transition-all">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                    登出系統
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content View Area -->
+        <main class="flex-1 overflow-y-auto p-6 md:p-10">
+            <section id="view-posts" class="space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+                    <div>
+                        <h1 class="text-2xl font-bold text-white">投稿審核與發布</h1>
+                        <p class="text-slate-400 text-sm mt-1">即時檢視、刪除（自動遞補編號）、複製內容與自動產生 IG 圖卡</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div class="text-xs bg-slate-800 text-slate-300 px-3.5 py-2 rounded-xl border border-slate-700">
+                            總投稿數：<span id="post-count-badge" class="font-bold text-blue-400">0</span> 筆
+                        </div>
+                        <button onclick="confirmDeleteAllPosts()" class="bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-lg">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            全部刪除
+                        </button>
+                    </div>
+                </div>
+
+                <div id="posts-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                </div>
+            </section>
+
+            <section id="view-announcement" class="hidden space-y-6 max-w-3xl">
+                <div class="border-b border-slate-800 pb-5">
+                    <h1 class="text-2xl font-bold text-white">修改前端公告</h1>
+                    <p class="text-slate-400 text-sm mt-1">更新彈送給學生觀看的公告內容（將寫入 <code class="text-amber-400">aa.json</code>）</p>
+                </div>
+
+                <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 space-y-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-300 mb-2">公告 HTML / 純文字內容：</label>
+                        <textarea id="announcement-input" class="w-full h-64 bg-slate-900 border border-slate-700 rounded-xl p-4 text-sm text-slate-100 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-all font-mono leading-relaxed" placeholder="請輸入公告內容..."></textarea>
+                    </div>
+
+                    <div class="flex justify-end">
+                        <button onclick="saveAnnouncement()" class="bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                            儲存並發布至 aa.json
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <section id="view-admins" class="hidden space-y-6 max-w-4xl">
+                <div class="border-b border-slate-800 pb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h1 class="text-2xl font-bold text-white">建立與管理管理員帳密</h1>
+                        <p class="text-slate-400 text-sm mt-1">新增管理員（資料保存於 <code class="text-purple-400">ap.json</code>）。主帳號擁有完全檢視權。</p>
+                    </div>
+                    <button onclick="openAddAdminModal()" id="btn-add-admin-trigger" class="bg-purple-600 hover:bg-purple-500 text-white font-bold py-2.5 px-4 rounded-xl shadow-lg transition-all flex items-center gap-2 text-sm">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                        新增管理員帳號
+                    </button>
+                </div>
+
+                <div class="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden shadow-xl">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-900/80 border-b border-slate-700 text-xs text-slate-400 uppercase tracking-wider">
+                                    <th class="p-4">管理員帳號</th>
+                                    <th class="p-4">密碼紀錄</th>
+                                    <th class="p-4">權限級別</th>
+                                    <th class="p-4 text-right">操作權限</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admins-table-body" class="divide-y divide-slate-700/60 text-sm">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="view-ip-logs" class="hidden space-y-6">
+                <div class="border-b border-slate-800 pb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h1 class="text-2xl font-bold text-white">IP 紀錄與司法稽核對照</h1>
+                        <p class="text-slate-400 text-sm mt-1">對照專屬 6 位數 ID 與投稿 IP 位址。依規定保留一年，逾期自動清理。</p>
+                    </div>
+
+                    <div class="relative w-full sm:w-72">
+                        <input type="text" id="ip-search-input" oninput="renderIpLogs()" placeholder="搜尋 6 位數代碼 (例如: 2D2FF3)..." class="w-full bg-slate-800 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 transition-all">
+                        <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    </div>
+                </div>
+
+                <div class="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden shadow-xl">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-900/80 border-b border-slate-700 text-xs text-slate-400 uppercase tracking-wider">
+                                    <th class="p-4">專屬六位代碼</th>
+                                    <th class="p-4">IP 位址</th>
+                                    <th class="p-4">投稿時間</th>
+                                    <th class="p-4">資料狀態</th>
+                                    <th class="p-4">投稿內容</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ip-logs-table-body" class="divide-y divide-slate-700/60 text-sm font-mono">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- MODAL 1: FORCE PASSWORD CHANGE -->
+    <div id="modal-force-password" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden items-center justify-center p-4">
+        <div class="bg-slate-800 border border-amber-500/40 rounded-2xl max-w-md w-full p-6 shadow-2xl modal-fade">
+            <div class="flex items-center gap-3 text-amber-400 mb-4">
+                <svg class="w-7 h-7 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                <h3 class="text-lg font-bold text-white">安全提示：需要更新初始密碼</h3>
+            </div>
+            <p class="text-xs text-slate-300 mb-6 leading-relaxed">
+                這是您第一次進入系統，防護機制要求您必須變更預設密碼，且<span class="text-amber-400 font-bold">新密碼不可與原密碼相同</span>。
+            </p>
+
+            <form onsubmit="event.preventDefault(); submitForcePasswordChange();" class="space-y-4">
+                <div>
+                    <label class="block text-xs text-slate-400 font-medium mb-1">請輸入新密碼</label>
+                    <input type="password" id="force-pass-1" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 font-medium mb-1">再次確認新密碼</label>
+                    <input type="password" id="force-pass-2" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500">
+                </div>
+
+                <div id="force-pass-error" class="hidden text-rose-400 text-xs bg-rose-500/10 p-2.5 rounded-lg text-center"></div>
+
+                <button type="submit" class="w-full mt-2 bg-amber-600 hover:bg-amber-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg">
+                    確認更新並存入 ap.json
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 2: POST DETAIL -->
+    <div id="modal-post-detail" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl modal-fade">
+            <div class="flex items-center justify-between border-b border-slate-700 pb-3 mb-4">
+                <h3 class="font-bold text-lg text-white flex items-center gap-2">
+                    <span id="detail-cy-id" class="text-blue-400 font-mono"></span>
+                    <span class="text-xs text-slate-400">投稿詳情</span>
+                </h3>
+                <button onclick="closeModal('modal-post-detail')" class="text-slate-400 hover:text-white">✕</button>
+            </div>
+
+            <div class="space-y-4 text-sm">
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">專屬 6 位數位碼</label>
+                    <div id="detail-secret-id" class="font-mono bg-slate-900 p-2.5 rounded-xl border border-slate-700 text-emerald-400 font-bold tracking-wider"></div>
+                </div>
+
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">投稿全文內容</label>
+                    <div id="detail-content" class="bg-slate-900 p-4 rounded-xl border border-slate-700 text-slate-200 leading-relaxed whitespace-pre-wrap max-h-60 overflow-y-auto"></div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 text-xs">
+                    <div class="bg-slate-900/60 p-2.5 rounded-xl border border-slate-700/60">
+                        <span class="text-slate-400 block">IP 位址</span>
+                        <span id="detail-ip" class="font-mono text-slate-200"></span>
+                    </div>
+                    <div class="bg-slate-900/60 p-2.5 rounded-xl border border-slate-700/60">
+                        <span class="text-slate-400 block">投稿時間</span>
+                        <span id="detail-time" class="font-mono text-slate-200"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end">
+                <button onclick="closeModal('modal-post-detail')" class="bg-slate-700 hover:bg-slate-600 text-white font-medium py-2 px-5 rounded-xl text-sm transition-all">
+                    關閉
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 3: CARD EXPORT -->
+    <div id="modal-card-export" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl modal-fade flex flex-col items-center">
+            <div class="w-full flex items-center justify-between border-b border-slate-700 pb-3 mb-4">
+                <h3 class="font-bold text-white text-base">自動合成 IG 圖卡預覽</h3>
+                <button onclick="closeModal('modal-card-export')" class="text-slate-400 hover:text-white">✕</button>
+            </div>
+
+            <div class="w-full aspect-[4/5] max-h-[55vh] bg-slate-950 rounded-xl overflow-hidden border border-slate-700 mb-4 flex items-center justify-center">
+                <canvas id="export-canvas" width="1080" height="1350" class="w-full h-full object-contain"></canvas>
+            </div>
+
+            <div class="w-full space-y-2">
+                <button onclick="downloadCanvasImage()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg flex justify-center items-center gap-2 text-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    下載高清圖卡 (ad.png 模板)
+                </button>
+
+                <button onclick="triggerIgUpload()" class="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg flex justify-center items-center gap-2 text-sm">
+                    發布至 Instagram 貼文
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 4: ADD ADMIN MODAL -->
+    <div id="modal-add-admin" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl modal-fade">
+            <div class="flex items-center justify-between border-b border-slate-700 pb-3 mb-4">
+                <h3 class="font-bold text-white text-base">新增管理員帳號</h3>
+                <button onclick="closeModal('modal-add-admin')" class="text-slate-400 hover:text-white">✕</button>
+            </div>
+
+            <form onsubmit="event.preventDefault(); submitAddAdmin();" class="space-y-4">
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">管理員帳號</label>
+                    <input type="text" id="new-admin-user" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">管理員密碼</label>
+                    <input type="password" id="new-admin-pass" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500">
+                </div>
+
+                <div id="add-admin-error" class="hidden text-rose-400 text-xs bg-rose-500/10 p-2.5 rounded-lg text-center"></div>
+
+                <button type="submit" class="w-full mt-2 bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg">
+                    寫入 ap.json 並建立
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 5: GENERAL NOTICE MODAL -->
+    <div id="modal-notice" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-sm w-full p-6 shadow-2xl modal-fade text-center">
+            <div id="notice-icon" class="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 bg-blue-500/20 text-blue-400">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </div>
+            <h3 id="notice-title" class="text-lg font-bold text-white mb-2">系統提示</h3>
+            <p id="notice-msg" class="text-sm text-slate-300 mb-6 leading-relaxed"></p>
+            <button onclick="closeModal('modal-notice')" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-2.5 rounded-xl transition-all">
+                確定
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL 6: CONFIRM DELETE ALL POSTS -->
+    <div id="modal-confirm-delete-all" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-slate-800 border border-rose-500/40 rounded-2xl max-w-sm w-full p-6 shadow-2xl modal-fade text-center">
+            <div class="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 bg-rose-500/20 text-rose-400">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            </div>
+            <h3 class="text-lg font-bold text-white mb-2">警告：確定要全部刪除？</h3>
+            <p class="text-xs text-slate-300 mb-6 leading-relaxed">
+                此操作將會清空目前所有投稿資料。<br><span class="text-amber-400 font-semibold">編號不會重置</span>，下一次投稿將自動接續目前的最大編號。
+            </p>
+            <div class="flex gap-3">
+                <button onclick="closeModal('modal-confirm-delete-all')" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-bold py-2.5 rounded-xl transition-all text-xs">
+                    取消
+                </button>
+                <button onclick="deleteAllPosts()" class="flex-1 bg-rose-600 hover:bg-rose-500 text-white font-bold py-2.5 rounded-xl transition-all shadow-lg text-xs">
+                    確認全部清空
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 7: IP & DEVICE DETAILS MODAL -->
+    <div id="modal-ip-detail" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl modal-fade">
+            <div class="flex items-center justify-between border-b border-slate-700 pb-3 mb-4">
+                <h3 class="font-bold text-lg text-white flex items-center gap-2">
+                    <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                    <span>IP 與裝置詳細稽核資訊</span>
+                </h3>
+                <button onclick="closeModal('modal-ip-detail')" class="text-slate-400 hover:text-white">✕</button>
+            </div>
+
+            <div class="space-y-4 text-sm font-sans">
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-slate-900/70 p-3 rounded-xl border border-slate-700/60">
+                        <span class="text-xs text-slate-400 block mb-1">六位數識別碼</span>
+                        <span id="ip-detail-secret-id" class="font-mono text-emerald-400 font-bold text-base"></span>
+                    </div>
+                    <div class="bg-slate-900/70 p-3 rounded-xl border border-slate-700/60">
+                        <span class="text-xs text-slate-400 block mb-1">IP 位址</span>
+                        <span id="ip-detail-ip" class="font-mono text-blue-400 font-bold text-base"></span>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900/70 p-3 rounded-xl border border-slate-700/60">
+                    <span class="text-xs text-slate-400 block mb-1">辨識裝置名稱與應用程式</span>
+                    <span id="ip-detail-device" class="text-slate-200 font-medium"></span>
+                </div>
+
+                <div class="bg-slate-900/70 p-3 rounded-xl border border-slate-700/60">
+                    <span class="text-xs text-slate-400 block mb-1">完整 User-Agent 標頭</span>
+                    <div id="ip-detail-ua" class="font-mono text-xs text-slate-400 break-all bg-slate-950 p-2.5 rounded-lg border border-slate-800 max-h-24 overflow-y-auto"></div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 text-xs">
+                    <div class="bg-slate-900/70 p-2.5 rounded-xl border border-slate-700/60">
+                        <span class="text-slate-400 block">投稿時間</span>
+                        <span id="ip-detail-time" class="font-mono text-slate-200"></span>
+                    </div>
+                    <div class="bg-slate-900/70 p-2.5 rounded-xl border border-slate-700/60">
+                        <span class="text-slate-400 block">資料狀態</span>
+                        <span id="ip-detail-status" class="font-mono text-slate-200"></span>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900/70 p-3 rounded-xl border border-slate-700/60">
+                    <span class="text-xs text-slate-400 block mb-1">投稿全文紀錄</span>
+                    <div id="ip-detail-content" class="text-slate-200 text-xs leading-relaxed whitespace-pre-wrap max-h-32 overflow-y-auto bg-slate-950 p-2.5 rounded-lg border border-slate-800"></div>
+                </div>
+            </div>
+
+            <div class="mt-5 flex justify-end">
+                <button onclick="closeModal('modal-ip-detail')" class="bg-slate-700 hover:bg-slate-600 text-white font-medium py-2 px-5 rounded-xl transition-all">
+                    關閉視窗
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const MASTER_ADMIN = 'cvysF133';
+        const DEFAULT_PASSWORD = 'admincyvsF133';
+
+        let state = {
+            currentUser: null,
+            admins: JSON.parse(localStorage.getItem('cy_ap_json')) || [
+                { username: 'cvysF133', password: 'admincyvsF133', isSuper: true, isDefault: true }
+            ],
+            posts: JSON.parse(localStorage.getItem('cy_ab_json')) || [],
+            ipLogs: JSON.parse(localStorage.getItem('cy_ak_json')) || [],
+            announcement: localStorage.getItem('cy_aa_json') || '歡迎來到匿名啟英 CY 投稿平台，請遵守投稿規範！'
+        };
+
+        let currentActiveCardPost = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedUser = sessionStorage.getItem('cy_logged_admin');
+            if (savedUser) {
+                state.currentUser = savedUser;
+                showDashboard();
+            }
+        });
+
+        function handleLogin() {
+            const userIn = document.getElementById('login-username').value.trim();
+            const passIn = document.getElementById('login-password').value.trim();
+            const errDiv = document.getElementById('login-error');
+
+            const foundAdmin = state.admins.find(a => a.username === userIn && a.password === passIn);
+
+            if (!foundAdmin) {
+                errDiv.textContent = '帳號或密碼錯誤';
+                errDiv.classList.remove('hidden');
+                return;
+            }
+
+            errDiv.classList.add('hidden');
+            state.currentUser = foundAdmin.username;
+
+            if (foundAdmin.isDefault || passIn === DEFAULT_PASSWORD) {
+                document.getElementById('modal-force-password').classList.remove('hidden');
+                document.getElementById('modal-force-password').classList.add('flex');
+            } else {
+                sessionStorage.setItem('cy_logged_admin', state.currentUser);
+                showDashboard();
+            }
+        }
+
+        function submitForcePasswordChange() {
+            const p1 = document.getElementById('force-pass-1').value.trim();
+            const p2 = document.getElementById('force-pass-2').value.trim();
+            const errDiv = document.getElementById('force-pass-error');
+
+            if (p1.length < 6) {
+                errDiv.textContent = '密碼長度太短，請至少輸入 6 位數';
+                errDiv.classList.remove('hidden');
+                return;
+            }
+
+            if (p1 === DEFAULT_PASSWORD) {
+                errDiv.textContent = '新密碼不可與初始原密碼相同！';
+                errDiv.classList.remove('hidden');
+                return;
+            }
+
+            if (p1 !== p2) {
+                errDiv.textContent = '兩次輸入的密碼不一致，請重新確認';
+                errDiv.classList.remove('hidden');
+                return;
+            }
+
+            const targetAdmin = state.admins.find(a => a.username === state.currentUser);
+            if (targetAdmin) {
+                targetAdmin.password = p1;
+                targetAdmin.isDefault = false;
+                saveAdminsToStorage();
+            }
+
+            closeModal('modal-force-password');
+            sessionStorage.setItem('cy_logged_admin', state.currentUser);
+            showDashboard();
+            showNotice('密碼更新成功', '已成功更新個人密碼並寫入 ap.json。');
+        }
+
+        function logout() {
+            sessionStorage.removeItem('cy_logged_admin');
+            state.currentUser = null;
+            document.getElementById('screen-dashboard').classList.add('hidden');
+            document.getElementById('screen-login').classList.remove('hidden');
+            document.getElementById('login-password').value = '';
+        }
+
+        async function fetchOnlinePosts() {
+            try {
+                const res = await fetch('/ab.json?t=' + Date.now());
+                if (res.ok) {
+                    const onlinePosts = await res.json();
+                    state.posts = onlinePosts;
+                    savePostsToStorage();
+                    renderPosts();
+                }
+            } catch (err) {
+                console.warn('無法連線取得線上 ab.json，暫時顯示本地資料:', err);
+            }
+        }
+
+        function showDashboard() {
+            document.getElementById('screen-login').classList.add('hidden');
+            document.getElementById('screen-dashboard').classList.remove('hidden');
+            document.getElementById('current-user-badge').textContent = state.currentUser;
+
+            fetchOnlinePosts();
+            syncPostsToAkJson();
+            cleanExpiredIpLogs();
+            switchTab('posts');
+        }
+
+        function switchTab(tabName) {
+            const tabs = ['posts', 'announcement', 'admins', 'ip-logs'];
+            tabs.forEach(t => {
+                const view = document.getElementById(`view-${t}`);
+                const nav = document.getElementById(`nav-${t}`);
+                if (view) view.classList.add('hidden');
+                if (nav) nav.classList.remove('bg-slate-700', 'text-white');
+            });
+
+            const activeView = document.getElementById(`view-${tabName}`);
+            const activeNav = document.getElementById(`nav-${tabName}`);
+
+            if (activeView) activeView.classList.remove('hidden');
+            if (activeNav) activeNav.classList.add('bg-slate-700', 'text-white');
+
+            if (tabName === 'posts') renderPosts();
+            if (tabName === 'announcement') loadAnnouncementEditor();
+            if (tabName === 'admins') renderAdminsTable();
+            if (tabName === 'ip-logs') renderIpLogs();
+        }
+
+        function renderPosts() {
+            const container = document.getElementById('posts-container');
+            document.getElementById('post-count-badge').textContent = state.posts.length;
+
+            if (state.posts.length === 0) {
+                container.innerHTML = `
+                    <div class="col-span-full text-center py-12 text-slate-500 bg-slate-800/50 rounded-2xl border border-slate-800">
+                        目前尚無投稿資料
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = state.posts.map((post, index) => `
+                <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-lg flex flex-col justify-between space-y-4 hover:border-slate-600 transition-all">
+                    <div>
+                        <div class="flex items-center justify-between border-b border-slate-700/60 pb-3 mb-3">
+                            <span class="font-mono text-blue-400 font-bold text-base">${post.id}</span>
+                            <span class="font-mono text-xs bg-slate-900 text-emerald-400 px-2 py-1 rounded-md border border-slate-700">${post.secret_id}</span>
+                        </div>
+                        <p class="text-sm text-slate-200 line-clamp-4 leading-relaxed">${escapeHtml(post.content)}</p>
+                    </div>
+
+                    <div class="pt-3 border-t border-slate-700/60 flex items-center justify-between text-xs text-slate-400">
+                        <span>${new Date(post.timestamp).toLocaleDateString()}</span>
+                        
+                        <div class="flex items-center gap-1">
+                            <button onclick='openPostDetail(${JSON.stringify(post)})' title="詳細內容" class="p-2 hover:bg-slate-700 rounded-lg text-slate-300 hover:text-white transition-all">
+                                內容
+                            </button>
+                            <button onclick='copyToClipboard(${JSON.stringify(post.content)})' title="複製內容" class="p-2 hover:bg-slate-700 rounded-lg text-slate-300 hover:text-white transition-all">
+                                複製
+                            </button>
+                            <button onclick='exportPostCard(${JSON.stringify(post)})' title="匯出圖卡" class="p-2 hover:bg-slate-700 rounded-lg text-amber-400 hover:text-amber-300 transition-all font-medium">
+                                圖卡
+                            </button>
+                            <button onclick="deletePost(${index})" title="刪除投稿" class="p-2 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 rounded-lg transition-all font-medium">
+                                刪除
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function deletePost(index) {
+            const targetPost = state.posts[index];
+            if (targetPost) {
+                const logItem = state.ipLogs.find(log => log.secret_id === targetPost.secret_id);
+                if (logItem) {
+                    logItem.status = '貼文已刪除 (IP留存中)';
+                    saveIpLogsToStorage();
+                }
+            }
+
+            state.posts.splice(index, 1);
+            state.posts = state.posts.map((post, i) => {
+                post.id = '#CY' + String(i + 1).padStart(3, '0');
+                return post;
+            });
+
+            savePostsToStorage();
+            renderPosts();
+            showNotice('已刪除貼文', '投稿已刪除，後續貼文編號已自動遞補向前！IP 與投稿內容仍獨立存檔於 ak.json。');
+        }
+
+        function confirmDeleteAllPosts() {
+            if (state.posts.length === 0) {
+                showNotice('提示', '目前沒有任何投稿資料可供刪除。');
+                return;
+            }
+            openModal('modal-confirm-delete-all');
+        }
+
+        function deleteAllPosts() {
+            state.posts.forEach(post => {
+                const logItem = state.ipLogs.find(log => log.secret_id === post.secret_id);
+                if (logItem) logItem.status = '貼文已刪除 (IP留存中)';
+            });
+            saveIpLogsToStorage();
+
+            let maxCount = parseInt(localStorage.getItem('cy_mock_count') || '0');
+            state.posts.forEach(p => {
+                const match = p.id.match(/\d+/);
+                if (match) {
+                    const num = parseInt(match[0], 10);
+                    if (num > maxCount) maxCount = num;
+                }
+            });
+
+            localStorage.setItem('cy_mock_count', maxCount.toString());
+            state.posts = [];
+            savePostsToStorage();
+            renderPosts();
+            closeModal('modal-confirm-delete-all');
+
+            const nextNumStr = '#CY' + String(maxCount + 1).padStart(3, '0');
+            showNotice('全部刪除成功', `所有投稿已被清空！IP 與投稿紀錄已完整留存於 ak.json。下一次投稿將從 ${nextNumStr} 接續發布。`);
+        }
+
+        function openPostDetail(post) {
+            document.getElementById('detail-cy-id').textContent = post.id;
+            document.getElementById('detail-secret-id').textContent = post.secret_id;
+            document.getElementById('detail-content').textContent = post.content;
+            document.getElementById('detail-ip').textContent = post.ip || '127.0.0.1';
+            document.getElementById('detail-time').textContent = new Date(post.timestamp).toLocaleString();
+
+            openModal('modal-post-detail');
+        }
+
+        function copyToClipboard(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                showNotice('複製成功', '投稿內容已複製至剪貼簿！');
+            } catch (err) {
+                showNotice('複製失敗', '無法自動複製，請手動複製。');
+            }
+            document.body.removeChild(textarea);
+        }
+
+        function exportPostCard(post) {
+            currentActiveCardPost = post;
+            const canvas = document.getElementById('export-canvas');
+            const ctx = canvas.getContext('2d');
+
+            const bgImg = new Image();
+            bgImg.crossOrigin = "anonymous";
+            bgImg.src = "ad.png";
+
+            bgImg.onload = () => {
+                canvas.width = bgImg.naturalWidth || 1080;
+                canvas.height = bgImg.naturalHeight || 1350;
+                ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+                drawTextOnCanvas(ctx, post, canvas.width, canvas.height);
+            };
+
+            bgImg.onerror = () => {
+                canvas.width = 1080;
+                canvas.height = 1350;
+
+                const gradient = ctx.createLinearGradient(0, 0, 1080, 1350);
+                gradient.addColorStop(0, '#1e293b');
+                gradient.addColorStop(1, '#0f172a');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, 1080, 1350);
+
+                ctx.strokeStyle = '#334155';
+                ctx.lineWidth = 4;
+                ctx.strokeRect(60, 60, 960, 1230);
+
+                drawTextOnCanvas(ctx, post, 1080, 1350);
+            };
+
+            openModal('modal-card-export');
+        }
+
+        function drawTextOnCanvas(ctx, post, canvasWidth = 1080, canvasHeight = 1350) {
+            const text = post.content;
+            const baseFontSize = Math.round(canvasWidth * (44 / 1080));
+            const lineHeight = Math.round(baseFontSize * 1.48);
+            const maxWidth = canvasWidth * 0.8;
+
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = `bold ${baseFontSize}px -apple-system, sans-serif`;
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = Math.max(3, Math.round(baseFontSize * 0.22));
+            ctx.fillStyle = '#ffffff';
+
+            const words = text.split('');
+            let line = '';
+            let lines = [];
+
+            for (let i = 0; i < words.length; i++) {
+                let testLine = line + words[i];
+                let metrics = ctx.measureText(testLine);
+                if (metrics.width > maxWidth && i > 0) {
+                    lines.push(line);
+                    line = words[i];
+                } else {
+                    line = testLine;
+                }
+            }
+            lines.push(line);
+
+            const totalHeight = lines.length * lineHeight;
+            let startY = (canvasHeight - totalHeight) / 2;
+
+            lines.forEach((l, index) => {
+                let y = startY + (index * lineHeight);
+                ctx.strokeText(l, canvasWidth / 2, y);
+                ctx.fillText(l, canvasWidth / 2, y);
+            });
+
+            const footerFontSize = Math.round(canvasWidth * (28 / 1080));
+            ctx.textAlign = 'right';
+            ctx.font = `${footerFontSize}px monospace`;
+            ctx.lineWidth = Math.max(2, Math.round(footerFontSize * 0.14));
+            ctx.strokeStyle = '#000000';
+            ctx.fillStyle = '#94a3b8';
+
+            const dateStr = new Date(post.timestamp).toLocaleDateString();
+            const footerText = `${dateStr}  ${post.secret_id}  ${post.id}`;
+            const footerX = canvasWidth * 0.91;
+            const footerY = canvasHeight * 0.91;
+
+            ctx.strokeText(footerText, footerX, footerY);
+            ctx.fillText(footerText, footerX, footerY);
+        }
+
+        function downloadCanvasImage() {
+            const canvas = document.getElementById('export-canvas');
+            const link = document.createElement('a');
+            link.download = `${currentActiveCardPost ? currentActiveCardPost.id : 'CY'}_card.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+
+        async function triggerIgUpload() {
+            if (!currentActiveCardPost) {
+                showNotice('提示', '請先選擇要發布的投稿。');
+                return;
+            }
+
+            const imageUrl = `${window.location.origin}/ad.png`;
+            const caption = `【匿名啟英 CY】${currentActiveCardPost.id}\n\n${currentActiveCardPost.content}\n\n#匿名啟英CY #啟英高中`;
+
+            showNotice('處理中', '正在安全連線至 Vercel Serverless API 發布至 Instagram...');
+
+            try {
+                const response = await fetch('/api/upload-ig', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ imageUrl, caption })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    showNotice('發布成功', `貼文已成功自動發布至 Instagram！貼文 ID: ${data.postId}`);
+                } else {
+                    showNotice('發布提示', `API 回傳結果：${data.error || '請先在 Vercel 設定環境變數 IG_ACCESS_TOKEN 與 IG_USER_ID'}`);
+                }
+            } catch (err) {
+                showNotice('系統提示', `已發送 API 請求：${err.message}`);
+            }
+        }
+
+        function loadAnnouncementEditor() {
+            document.getElementById('announcement-input').value = state.announcement;
+        }
+
+        function saveAnnouncement() {
+            state.announcement = document.getElementById('announcement-input').value;
+            localStorage.setItem('cy_aa_json', state.announcement);
+            showNotice('儲存成功', '最新公告內容已更新並同步至 aa.json！');
+        }
+
+        function renderAdminsTable() {
+            const isMaster = state.currentUser === MASTER_ADMIN;
+            const tbody = document.getElementById('admins-table-body');
+
+            tbody.innerHTML = state.admins.map((admin, idx) => {
+                const maskedPass = admin.password.length > 2 
+                    ? admin.password[0] + '•'.repeat(admin.password.length - 2) + admin.password[admin.password.length - 1]
+                    : '••••••';
+
+                return `
+                    <tr class="hover:bg-slate-700/30 transition-all">
+                        <td class="p-4 font-mono font-bold ${admin.username === MASTER_ADMIN ? 'text-amber-400' : 'text-slate-200'}">
+                            ${admin.username} ${admin.username === MASTER_ADMIN ? '<span class="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded ml-2">最高權限</span>' : ''}
+                        </td>
+                        <td class="p-4 font-mono text-slate-400">
+                            <span id="pass-display-${idx}">${maskedPass}</span>
+                            ${isMaster ? `
+                                <button onclick="toggleShowPassword(${idx})" class="ml-2 text-xs text-blue-400 hover:underline">
+                                    [顯示/隱藏]
+                                </button>
+                            ` : ''}
+                        </td>
+                        <td class="p-4 text-xs text-slate-400">
+                            ${admin.username === MASTER_ADMIN ? '擁有完全寫入/刪除權限' : '一般管理權限'}
+                        </td>
+                        <td class="p-4 text-right">
+                            ${isMaster && admin.username !== MASTER_ADMIN ? `
+                                <button onclick="deleteAdmin(${idx})" class="text-xs bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white px-3 py-1.5 rounded-lg transition-all">
+                                    刪除帳號
+                                </button>
+                            ` : '<span class="text-xs text-slate-600">無存取權限</span>'}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            const addBtn = document.getElementById('btn-add-admin-trigger');
+            if (!isMaster) {
+                addBtn.onclick = () => showNotice('權限受限', '僅有最高權限帳號 (cvysF133) 可以建立管理員！');
+            } else {
+                addBtn.onclick = openAddAdminModal;
+            }
+        }
+
+        function toggleShowPassword(idx) {
+            if (state.currentUser !== MASTER_ADMIN) {
+                showNotice('沒有權限', '只有帳號 cvysF133 可以查看完整密碼！');
+                return;
+            }
+            const el = document.getElementById(`pass-display-${idx}`);
+            const admin = state.admins[idx];
+
+            if (el.textContent.includes('•')) {
+                el.textContent = admin.password;
+            } else {
+                el.textContent = admin.password[0] + '•'.repeat(admin.password.length - 2) + admin.password[admin.password.length - 1];
+            }
+        }
+
+        function openAddAdminModal() {
+            if (state.currentUser !== MASTER_ADMIN) {
+                showNotice('權限受限', '僅有最高權限帳號 (cvysF133) 可以建立管理員！');
+                return;
+            }
+            openModal('modal-add-admin');
+        }
+
+        function submitAddAdmin() {
+            const user = document.getElementById('new-admin-user').value.trim();
+            const pass = document.getElementById('new-admin-pass').value.trim();
+            const errDiv = document.getElementById('add-admin-error');
+
+            if (!user || !pass) {
+                errDiv.textContent = '請完整填寫帳號與密碼';
+                errDiv.classList.remove('hidden');
+                return;
+            }
+
+            if (state.admins.some(a => a.username === user)) {
+                errDiv.textContent = '該管理員帳號已存在！';
+                errDiv.classList.remove('hidden');
+                return;
+            }
+
+            state.admins.push({ username: user, password: pass, isSuper: false, isDefault: false });
+            saveAdminsToStorage();
+
+            closeModal('modal-add-admin');
+            renderAdminsTable();
+            showNotice('建立成功', `已建立新管理員 ${user} 並寫入 ap.json！`);
+        }
+
+        function deleteAdmin(idx) {
+            if (state.currentUser !== MASTER_ADMIN) {
+                showNotice('沒有權限', '僅有最高權限帳號可刪除管理員！');
+                return;
+            }
+            const removed = state.admins.splice(idx, 1);
+            saveAdminsToStorage();
+            renderAdminsTable();
+            showNotice('刪除成功', `已移除管理員 ${removed[0].username}。`);
+        }
+
+        function syncPostsToAkJson() {
+            let updated = false;
+            state.posts.forEach(post => {
+                const existing = state.ipLogs.find(log => log.secret_id === post.secret_id);
+                if (!existing) {
+                    state.ipLogs.push({
+                        id: post.id,
+                        secret_id: post.secret_id,
+                        content: post.content,
+                        ip: post.ip || '127.0.0.1',
+                        timestamp: post.timestamp,
+                        status: '貼文發布中'
+                    });
+                    updated = true;
+                }
+            });
+            if (updated) saveIpLogsToStorage();
+        }
+
+        function cleanExpiredIpLogs() {
+            const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+            const now = Date.now();
+            const originalLength = state.ipLogs.length;
+
+            state.ipLogs = state.ipLogs.filter(p => {
+                const postTime = new Date(p.timestamp).getTime();
+                return (now - postTime) < ONE_YEAR_MS;
+            });
+
+            if (state.ipLogs.length < originalLength) saveIpLogsToStorage();
+        }
+
+        function parseIpInfo(rawIpStr) {
+            if (!rawIpStr) return { ip: 'Unknown', device: '未知裝置', ua: '無資料' };
+            const match = rawIpStr.match(/^([^\s]+)(?:\s*\((.*)\))?$/);
+            const ip = match ? match[1] : rawIpStr;
+            const ua = match && match[2] ? match[2] : '未擷取到 User-Agent';
+
+            let device = '電腦 / 未知裝置';
+            if (/iPhone/i.test(ua)) device = 'Apple iPhone';
+            else if (/iPad/i.test(ua)) device = 'Apple iPad';
+            else if (/Android/i.test(ua)) device = 'Android 行動裝置';
+            else if (/Macintosh|Mac OS/i.test(ua)) device = 'Mac 電腦';
+            else if (/Windows/i.test(ua)) device = 'Windows 電腦';
+
+            if (/Instagram/i.test(ua)) device += ' (Instagram App)';
+            else if (/Line/i.test(ua)) device += ' (LINE App)';
+            else if (/Safari/i.test(ua) && !/Chrome/i.test(ua)) device += ' (Safari)';
+            else if (/Chrome/i.test(ua)) device += ' (Chrome)';
+
+            return { ip, device, ua };
+        }
+
+        function openIpDetail(secretId) {
+            const item = state.ipLogs.find(l => l.secret_id === secretId);
+            if (!item) return;
+            const parsed = parseIpInfo(item.ip);
+
+            document.getElementById('ip-detail-secret-id').textContent = item.secret_id;
+            document.getElementById('ip-detail-ip').textContent = parsed.ip;
+            document.getElementById('ip-detail-device').textContent = parsed.device;
+            document.getElementById('ip-detail-ua').textContent = parsed.ua;
+            document.getElementById('ip-detail-time').textContent = new Date(item.timestamp).toLocaleString();
+            document.getElementById('ip-detail-status').textContent = item.status || '貼文發布中';
+            document.getElementById('ip-detail-content').textContent = item.content || '-';
+
+            openModal('modal-ip-detail');
+        }
+
+        function renderIpLogs() {
+            syncPostsToAkJson();
+            const searchQuery = (document.getElementById('ip-search-input')?.value || '').trim().toLowerCase();
+            const tbody = document.getElementById('ip-logs-table-body');
+
+            const filtered = state.ipLogs.filter(p => 
+                p.secret_id.toLowerCase().includes(searchQuery) || 
+                (p.content && p.content.toLowerCase().includes(searchQuery)) ||
+                (p.ip && p.ip.includes(searchQuery))
+            );
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-slate-500 font-sans">無符合搜尋結果的紀錄</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(p => {
+                const isDeleted = p.status && p.status.includes('已刪除');
+                const statusBadge = isDeleted
+                    ? `<span class="bg-rose-500/20 text-rose-300 border border-rose-500/30 px-2 py-1 rounded-md">貼文已刪除 (IP留存中)</span>`
+                    : `<span class="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-1 rounded-md">貼文發布中</span>`;
+
+                const parsed = parseIpInfo(p.ip);
+
+                return `
+                    <tr class="hover:bg-slate-700/30 transition-all">
+                        <td class="p-4 text-emerald-400 font-bold tracking-wider">${p.secret_id}</td>
+                        <td class="p-4 text-slate-200">
+                            <div class="flex items-center gap-2">
+                                <span class="font-mono">${parsed.ip}</span>
+                                <button onclick="openIpDetail('${p.secret_id}')" title="點擊檢視詳細裝置與 User-Agent 資訊" class="p-1 hover:bg-slate-700 rounded-md text-blue-400 hover:text-blue-300 transition-all">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                </button>
+                            </div>
+                        </td>
+                        <td class="p-4 text-slate-400 text-xs">${new Date(p.timestamp).toLocaleString()}</td>
+                        <td class="p-4 text-xs font-sans">${statusBadge}</td>
+                        <td class="p-4 text-xs font-sans text-slate-300 max-w-xs truncate" title="${escapeHtml(p.content || '')}">${escapeHtml(p.content || '-')}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function triggerIncompleteModal() {
+            showNotice('系統提示', '功能尚未完成，敬請期待未來版本更新！');
+        }
+
+        function savePostsToStorage() {
+            localStorage.setItem('cy_ab_json', JSON.stringify(state.posts));
+        }
+
+        function saveIpLogsToStorage() {
+            localStorage.setItem('cy_ak_json', JSON.stringify(state.ipLogs));
+        }
+
+        function saveAdminsToStorage() {
+            localStorage.setItem('cy_ap_json', JSON.stringify(state.admins));
+        }
+
+        function showNotice(title, msg) {
+            document.getElementById('notice-title').textContent = title;
+            document.getElementById('notice-msg').textContent = msg;
+            openModal('modal-notice');
+        }
+
+        function openModal(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('hidden');
+                el.classList.add('flex');
+            }
+        }
+
+        function closeModal(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.add('hidden');
+                el.classList.remove('flex');
+            }
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+    </script>
+</body>
+</html>
