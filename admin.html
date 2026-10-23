@@ -622,13 +622,14 @@
                         <span>${new Date(post.timestamp).toLocaleDateString()}</span>
                         
                         <div class="flex items-center gap-1">
-                            <button onclick='openPostDetail(${JSON.stringify(post)})' title="詳細內容" class="p-2 hover:bg-slate-700 rounded-lg text-slate-300 hover:text-white transition-all">
+                            <!-- 統一改為傳遞 index -->
+                            <button onclick="openPostDetail(${index})" title="詳細內容" class="p-2 hover:bg-slate-700 rounded-lg text-slate-300 hover:text-white transition-all">
                                 內容
                             </button>
-                            <button onclick='copyToClipboard(${JSON.stringify(post.content)})' title="複製內容" class="p-2 hover:bg-slate-700 rounded-lg text-slate-300 hover:text-white transition-all">
+                            <button onclick="copyToClipboard(${index})" title="複製內容" class="p-2 hover:bg-slate-700 rounded-lg text-slate-300 hover:text-white transition-all">
                                 複製
                             </button>
-                            <button onclick='exportPostCard(${JSON.stringify(post)})' title="匯出圖卡" class="p-2 hover:bg-slate-700 rounded-lg text-amber-400 hover:text-amber-300 transition-all font-medium">
+                            <button onclick="exportPostCard(${index})" title="匯出圖卡" class="p-2 hover:bg-slate-700 rounded-lg text-amber-400 hover:text-amber-300 transition-all font-medium">
                                 圖卡
                             </button>
                             <button onclick="deletePost(${index})" title="刪除投稿" class="p-2 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 rounded-lg transition-all font-medium">
@@ -695,7 +696,9 @@
             showNotice('全部刪除成功', `所有投稿已被清空！IP 與投稿紀錄已完整留存於 ak.json。下一次投稿將從 ${nextNumStr} 接續發布。`);
         }
 
-        function openPostDetail(post) {
+        // 修改：使用 index 讀取，避免引號衝突
+        function openPostDetail(index) {
+            const post = state.posts[index];
             document.getElementById('detail-cy-id').textContent = post.id;
             document.getElementById('detail-secret-id').textContent = post.secret_id;
             document.getElementById('detail-content').textContent = post.content;
@@ -705,7 +708,9 @@
             openModal('modal-post-detail');
         }
 
-        function copyToClipboard(text) {
+        // 修改：使用 index 讀取內容複製
+        function copyToClipboard(index) {
+            const text = state.posts[index].content;
             const textarea = document.createElement('textarea');
             textarea.value = text;
             document.body.appendChild(textarea);
@@ -719,7 +724,9 @@
             document.body.removeChild(textarea);
         }
 
-        function exportPostCard(post) {
+        // 修改：使用 index 讀取以產生圖卡
+        function exportPostCard(index) {
+            const post = state.posts[index];
             currentActiveCardPost = post;
             const canvas = document.getElementById('export-canvas');
             const ctx = canvas.getContext('2d');
@@ -1076,8 +1083,21 @@
             showNotice('系統提示', '功能尚未完成，敬請期待未來版本更新！');
         }
 
-        function savePostsToStorage() {
+        // 修改：加入 async / await 以在儲存時呼叫後端 API
+        async function savePostsToStorage() {
+            // 寫入本地緩存
             localStorage.setItem('cy_ab_json', JSON.stringify(state.posts));
+            
+            // 將更新後的陣列發送至後端儲存
+            try {
+                await fetch('/api/update-ab', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(state.posts)
+                });
+            } catch (error) {
+                console.warn('同步至後端 ab.json 失敗 (若為純前端預覽可忽略此警告):', error);
+            }
         }
 
         function saveIpLogsToStorage() {
