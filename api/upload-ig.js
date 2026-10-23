@@ -58,10 +58,11 @@ module.exports = async (req, res) => {
     let blobUrl = '';
 
     if (body.imageBase64) {
-      if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      // 舊版 Blob 使用 BLOB_READ_WRITE_TOKEN；新版 Blob 只有 BLOB_STORE_ID，執行時由 Vercel 自動提供 OIDC 憑證
+      if (!process.env.BLOB_READ_WRITE_TOKEN && !process.env.BLOB_STORE_ID) {
         return res.status(500).json({
           success: false,
-          error: '尚未啟用 Vercel Blob：請到 Vercel 專案 → Storage → Create Database → Blob，建立並連結到此專案後重新部署（會自動加入 BLOB_READ_WRITE_TOKEN）'
+          error: '尚未連結 Vercel Blob：請到 Vercel 專案 → Storage，建立 Blob 並連結到此專案後重新部署（會自動加入 BLOB_STORE_ID）'
         });
       }
       const buf = Buffer.from(String(body.imageBase64).replace(/^data:image\/\w+;base64,/, ''), 'base64');
@@ -71,19 +72,45 @@ module.exports = async (req, res) => {
       if (buf.length > 7 * 1024 * 1024) {
         return res.status(400).json({ success: false, error: '圖片超過 Instagram 的 8MB 限制' });
       }
-      const blob = await put(`ig/card-${Date.now()}.jpg`, buf, {
-        access: 'public',
-        contentType: 'image/jpeg',
-        addRandomSuffix: true
-      });
+      let blob;
+      try {
+        blob = await put(`ig/card-${Date.now()}.jpg`, buf, {
+          access: 'public',
+          contentType: 'image/jpeg',
+          addRandomSuffix: true
+        });
+      } catch (e) {
+        console.error('Blob put error:', e);
+        return res.status(500).json({ success: false, error: '暫存圖片到 Vercel Blob 失敗：' + e.message + '（請確認 Blob 已連結到此專案、存取類型為 Public，並已重新部署）' });
+      }
       imageUrl = blobUrl = blob.url;
     } else {
-      imageUrl = String(body.imageUrl || '');
-      if (!/^https:\/\//i.test(imageUrl)) {
-        return res.status(400).json({ success: false, error: '缺少圖片：請提供 imageBase64 或公開的 https imageUrl' });
-      }
+      // 舊版後台頁面只會傳 imageUrl（固定的 /ad.png 模板），不是合成後的圖卡
+      return res.status(400).json({
+        success: false,
+        error: '後台頁面還是舊版（沒有送出圖卡）。請對 admin.html 按 Ctrl+Shift+R（手機請清除快取）強制重新整理，再重新「匯出圖卡」後發布。'
+      });
     }
     const cleanup = async () => { if (blobUrl) { try { await del(blobUrl); } catch (e) { console.warn('刪除暫存圖片失敗', e.message); } } };
+
+    // 4-0. 先自己檢查這個網址：Instagram 看到的內容必須真的是圖片
+    try {
+      const probe = await fetch(imageUrl, { headers: { 'User-Agent': 'facebookexternalhit/1.1', Range: 'bytes=0-15' } });
+      const ctype = (probe.headers.get('content-type') || '').toLowerCase();
+      const head = Buffer.from(await probe.arrayBuffer());
+      const isJpg = head[0] === 0xff && head[1] === 0xd8;
+      const isPng = head[0] === 0x89 && head[1] === 0x50;
+      if (!(probe.status === 200 || probe.status === 206) || !(isJpg || isPng)) {
+        await cleanup();
+        return res.status(500).json({
+          success: false,
+          error: `圖片網址無法被當成圖片讀取（HTTP ${probe.status}，content-type: ${ctype || '無'}）。網址：${imageUrl}`
+        });
+      }
+    } catch (e) {
+      await cleanup();
+      return res.status(500).json({ success: false, error: '無法讀取暫存圖片網址：' + e.message });
+    }
 
     const base = token.startsWith('IG') ? `https://graph.instagram.com/${API_VERSION}` : `https://graph.facebook.com/${API_VERSION}`;
 
@@ -104,7 +131,7 @@ module.exports = async (req, res) => {
     if (!container.id) {
       const e = container.error || {};
       await cleanup();
-      return res.status(500).json({ success: false, error: friendlyError(e, token), detail: { code: e.code, subcode: e.error_subcode } });
+      return res.status(500).json({ success: false, error: friendlyError(e, token), detail: { code: e.code, subcode: e.error_subcode, imageUrl } });
     }
 
     // 5. 等 Container 處理完成（最多約 10 秒）
