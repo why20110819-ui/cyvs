@@ -1,8 +1,14 @@
 [
   {
     "username": "cvysF133",
-    "password": "admincyvsF133",
+    "password": "YME.2011",
     "isSuper": true,
-    "isDefault": true
+    "isDefault": false
+  },
+  {
+    "username": "ADMIN",
+    "password": "admin",
+    "isSuper": false,
+    "isDefault": false
   }
 ]
