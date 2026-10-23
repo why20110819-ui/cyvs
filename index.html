@@ -228,7 +228,8 @@
 
             async function loadAnnouncement() {
                 try {
-                    const res = await fetch('aa.json?t=' + Date.now());
+                    let res = await fetch('/api/data?public=aa&t=' + Date.now());
+                    if (!res.ok) res = await fetch('aa.json?t=' + Date.now());
                     if (!res.ok) throw new Error('aa.json not found');
                     const data = await res.json();
                     
@@ -330,24 +331,9 @@
                 `;
 
                 try {
-                    const userIP = await fetchUserIP();
-                    const userAgent = navigator.userAgent;
-                    const postCount = parseInt(localStorage.getItem('cy_mock_count') || '0') + 1;
-                    localStorage.setItem('cy_mock_count', postCount.toString());
-
-                    const postId = '#CY' + String(postCount).padStart(3, '0');
-                    const secretId = generateSecretId();
                     const cleanContent = sanitizeHtml(rawText);
-
-                    const payload = {
-                        id: postId,
-                        secret_id: secretId,
-                        content: cleanContent,
-                        ip: `${userIP} (${userAgent})`,
-                        timestamp: new Date().toISOString()
-                    };
-
-                    await saveToGitHub(payload);
+                    const result = await saveToGitHub({ content: cleanContent });
+                    const postId = result.id;
 
                     els.successIdDisplay.textContent = `投稿識別碼 ${postId}`;
                     els.modSuccess.classList.remove('hidden');
@@ -365,6 +351,7 @@
                 }
             });
 
+            // 編號、識別碼、時間、IP 全部由伺服器 (/api/submit) 產生並寫入 ab.json / ak.json
             async function saveToGitHub(payload) {
                 const res = await fetch('/api/submit', {
                     method: 'POST',
@@ -372,16 +359,11 @@
                     body: JSON.stringify(payload)
                 });
 
-                const data = await res.json();
+                const data = await res.json().catch(() => ({}));
                 if (!res.ok || !data.success) {
                     throw new Error(data.error || '投稿寫入失敗');
                 }
-
-                const existingPosts = JSON.parse(localStorage.getItem('cy_ab_json') || '[]');
-                existingPosts.unshift(payload);
-                localStorage.setItem('cy_ab_json', JSON.stringify(existingPosts));
-
-                return true;
+                return data;
             }
 
             els.btnCloseSuccess.addEventListener('click', () => {

@@ -462,41 +462,114 @@
 
         let state = {
             currentUser: null,
-            admins: JSON.parse(localStorage.getItem('cy_ap_json')) || [
-                { username: 'cvysF133', password: 'admincyvsF133', isSuper: true, isDefault: true }
-            ],
-            posts: JSON.parse(localStorage.getItem('cy_ab_json')) || [],
-            ipLogs: JSON.parse(localStorage.getItem('cy_ak_json')) || [],
-            announcement: localStorage.getItem('cy_aa_json') || '歡迎來到匿名啟英 CY 投稿平台，請遵守投稿規範！'
+            admins: [],
+            posts: [],
+            ipLogs: [],
+            announcement: ''
         };
+
+        // ===== 後端 API (/api/data) =====
+        function getAuth() {
+            try { return JSON.parse(sessionStorage.getItem('cy_auth')) || null; } catch (e) { return null; }
+        }
+        function authHeaders() {
+            const a = getAuth() || { u: '', p: '' };
+            return {
+                'Content-Type': 'application/json',
+                'x-admin-user': encodeURIComponent(a.u),
+                'x-admin-pass': encodeURIComponent(a.p)
+            };
+        }
+        async function apiGet(file) {
+            const res = await fetch(`/api/data?file=${file}&t=${Date.now()}`, { headers: authHeaders(), cache: 'no-store' });
+            if (res.status === 401) { logout(); throw new Error('登入已失效，請重新登入'); }
+            if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || ('HTTP ' + res.status));
+            return res.json();
+        }
+        async function apiSet(file, data) {
+            try {
+                const res = await fetch(`/api/data?file=${file}`, {
+                    method: 'POST',
+                    headers: authHeaders(),
+                    body: JSON.stringify({ data })
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    console.error('寫入失敗', file, err);
+                    return { ok: false, error: err.error || ('HTTP ' + res.status) };
+                }
+                return { ok: true };
+            } catch (e) {
+                console.error('寫入失敗', file, e);
+                return { ok: false, error: e.message };
+            }
+        }
+        // 伺服器端操作（刪除投稿、同步紀錄等）。成功時回傳伺服器「讀回驗證後」的最新資料
+        async function apiAction(action, payload = {}) {
+            try {
+                const res = await fetch(`/api/data?action=${action}`, {
+                    method: 'POST',
+                    headers: authHeaders(),
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json().catch(() => ({}));
+                if (res.status === 401) { logout(); return { ok: false, error: '登入已失效，請重新登入' }; }
+                if (!res.ok) return { ok: false, error: data.error || ('HTTP ' + res.status) };
+                return data;
+            } catch (e) {
+                return { ok: false, error: e.message };
+            }
+        }
+        // 序列化寫入，避免短時間內多次寫入同一個檔案互相覆蓋
+        const writeQueues = {};
+        function queuedSet(file, getData) {
+            const prev = writeQueues[file] || Promise.resolve();
+            const next = prev.catch(() => {}).then(() => apiSet(file, getData()));
+            writeQueues[file] = next;
+            return next;
+        }
 
         let currentActiveCardPost = null;
 
         document.addEventListener('DOMContentLoaded', () => {
             const savedUser = sessionStorage.getItem('cy_logged_admin');
-            if (savedUser) {
+            if (savedUser && getAuth()) {
                 state.currentUser = savedUser;
                 showDashboard();
             }
         });
 
-        function handleLogin() {
+        async function handleLogin() {
             const userIn = document.getElementById('login-username').value.trim();
             const passIn = document.getElementById('login-password').value.trim();
             const errDiv = document.getElementById('login-error');
 
-            const foundAdmin = state.admins.find(a => a.username === userIn && a.password === passIn);
-
-            if (!foundAdmin) {
-                errDiv.textContent = '帳號或密碼錯誤';
+            let data;
+            try {
+                const res = await fetch('/api/data?action=login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: userIn, password: passIn })
+                });
+                data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    errDiv.textContent = data.error || '登入失敗';
+                    errDiv.classList.remove('hidden');
+                    return;
+                }
+            } catch (e) {
+                errDiv.textContent = '無法連線到伺服器 /api/data';
                 errDiv.classList.remove('hidden');
                 return;
             }
 
             errDiv.classList.add('hidden');
-            state.currentUser = foundAdmin.username;
+            state.admins = data.admins;
+            state.currentUser = userIn;
+            sessionStorage.setItem('cy_auth', JSON.stringify({ u: userIn, p: passIn }));
 
-            if (foundAdmin.isDefault || passIn === DEFAULT_PASSWORD) {
+            const foundAdmin = state.admins.find(a => a.username === userIn);
+            if ((foundAdmin && foundAdmin.isDefault) || passIn === DEFAULT_PASSWORD) {
                 document.getElementById('modal-force-password').classList.remove('hidden');
                 document.getElementById('modal-force-password').classList.add('flex');
             } else {
@@ -505,7 +578,7 @@
             }
         }
 
-        function submitForcePasswordChange() {
+        async function submitForcePasswordChange() {
             const p1 = document.getElementById('force-pass-1').value.trim();
             const p2 = document.getElementById('force-pass-2').value.trim();
             const errDiv = document.getElementById('force-pass-error');
@@ -532,7 +605,13 @@
             if (targetAdmin) {
                 targetAdmin.password = p1;
                 targetAdmin.isDefault = false;
-                saveAdminsToStorage();
+                const r = await saveAdminsToStorage();
+                if (!r.ok) {
+                    errDiv.textContent = '寫入 ap.json 失敗：' + r.error;
+                    errDiv.classList.remove('hidden');
+                    return;
+                }
+                sessionStorage.setItem('cy_auth', JSON.stringify({ u: state.currentUser, p: p1 }));
             }
 
             closeModal('modal-force-password');
@@ -543,29 +622,32 @@
 
         function logout() {
             sessionStorage.removeItem('cy_logged_admin');
+            sessionStorage.removeItem('cy_auth');
             state.currentUser = null;
             document.getElementById('screen-dashboard').classList.add('hidden');
             document.getElementById('screen-login').classList.remove('hidden');
             document.getElementById('login-password').value = '';
         }
 
-        // 修改：向新的 get-ab API 端點索取最新資料，而不是快取的靜態檔案
-        async function fetchOnlinePosts() {
+        // 從後端一次載入 ab / ak / aa / ap（以伺服器資料為準）
+        async function loadAllData() {
             try {
-                // 如果已經實作 get-ab.js，這裡會請求最新資料
-                const res = await fetch('/api/get-ab?t=' + Date.now());
-                if (res.ok) {
-                    const onlinePosts = await res.json();
-                    state.posts = onlinePosts;
-                    // 將新抓取的資料快取回 local
-                    localStorage.setItem('cy_ab_json', JSON.stringify(state.posts));
-                    renderPosts();
+                const [ab, ak, aa, ap] = await Promise.all([apiGet('ab'), apiGet('ak'), apiGet('aa'), apiGet('ap')]);
+                state.posts = Array.isArray(ab) ? ab : [];
+                state.ipLogs = Array.isArray(ak) ? ak : [];
+                // 學生端讀 aa.json 的 content (HTML)；後台編輯用純文字 text，沒有 text 時由 content 還原
+                if (aa && typeof aa === 'object') {
+                    state.announcement = aa.text !== undefined ? aa.text
+                        : String(aa.content || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '');
                 } else {
-                    console.warn('API 回傳非 200，暫不覆寫畫面');
+                    state.announcement = String(aa || '');
                 }
+                if (Array.isArray(ap) && ap.length) state.admins = ap;
+                return true;
             } catch (err) {
-                console.warn('無法連線取得線上 /api/get-ab，暫時顯示本地資料:', err);
-                // 讀取不到就繼續用原本 state 裡的
+                console.error('載入伺服器資料失敗:', err);
+                showNotice('載入失敗', '無法從伺服器讀取資料：' + err.message);
+                return false;
             }
         }
 
@@ -574,10 +656,16 @@
             document.getElementById('screen-dashboard').classList.remove('hidden');
             document.getElementById('current-user-badge').textContent = state.currentUser;
 
-            fetchOnlinePosts();
-            syncPostsToAkJson();
-            cleanExpiredIpLogs();
             switchTab('posts');
+            loadAllData().then(async ok => {
+                if (!ok) return;
+                const sync = await apiAction('syncLogs');
+                if (sync.ok) state.ipLogs = sync.ipLogs;
+                renderPosts();
+                loadAnnouncementEditor();
+                renderAdminsTable();
+                renderIpLogs();
+            });
         }
 
         function switchTab(tabName) {
@@ -599,6 +687,19 @@
             if (tabName === 'announcement') loadAnnouncementEditor();
             if (tabName === 'admins') renderAdminsTable();
             if (tabName === 'ip-logs') renderIpLogs();
+
+            // 切換分頁時重新向伺服器取得最新資料（學生可能剛投稿），避免用過期資料顯示
+            if (state.currentUser && !switchTab.loading) {
+                switchTab.loading = true;
+                loadAllData().then(ok => {
+                    switchTab.loading = false;
+                    if (!ok) return;
+                    if (tabName === 'posts') renderPosts();
+                    if (tabName === 'announcement') loadAnnouncementEditor();
+                    if (tabName === 'admins') renderAdminsTable();
+                    if (tabName === 'ip-logs') renderIpLogs();
+                });
+            }
         }
 
         function renderPosts() {
@@ -646,40 +747,23 @@
             `).join('');
         }
 
-        // 修改：單筆刪除加入等待 (await) 與失敗復原機制
+        // 單筆刪除：交給伺服器處理（重新編號 + 更新 ak），畫面一律以伺服器回傳的資料為準
         async function deletePost(index) {
             const targetPost = state.posts[index];
-            if (targetPost) {
-                const logItem = state.ipLogs.find(log => log.secret_id === targetPost.secret_id);
-                if (logItem) {
-                    logItem.status = '貼文已刪除 (IP留存中)';
-                    saveIpLogsToStorage();
-                }
-            }
+            if (!targetPost) return;
 
-            // 備份資料以便失敗時復原
-            const backupPosts = JSON.parse(JSON.stringify(state.posts));
+            showNotice('處理中', '正在刪除並寫入 GitHub，請稍候...');
+            const r = await apiAction('deletePost', { secret_id: targetPost.secret_id });
 
-            state.posts.splice(index, 1);
-            state.posts = state.posts.map((post, i) => {
-                post.id = '#CY' + String(i + 1).padStart(3, '0');
-                return post;
-            });
-
-            // 先更新畫面，讓使用者感覺有反應
-            renderPosts();
-
-            // 等待後端 API 儲存結果
-            showNotice('處理中', '正在刪除並同步至伺服器...');
-            const isSuccess = await savePostsToStorage();
-            
-            if (isSuccess) {
-                showNotice('已刪除貼文', '投稿已成功從伺服器端刪除，後續貼文編號已自動遞補！');
-            } else {
-                // 如果後端儲存失敗，把畫面上的資料還原
-                state.posts = backupPosts;
+            if (r.ok) {
+                state.posts = r.posts;
+                state.ipLogs = r.ipLogs;
                 renderPosts();
-                showNotice('刪除失敗', '無法修改伺服器上的資料！請確認後端 API 是否正常運作。');
+                showNotice('已刪除貼文', '投稿已從 ab.json 刪除並通過驗證，後續貼文編號已自動遞補！');
+            } else {
+                await loadAllData();
+                renderPosts();
+                showNotice('刪除失敗', 'JSON 並未被修改：' + r.error);
             }
         }
 
@@ -691,42 +775,20 @@
             openModal('modal-confirm-delete-all');
         }
 
-        // 修改：全部刪除加入等待 (await) 與失敗復原機制
         async function deleteAllPosts() {
-            const backupPosts = JSON.parse(JSON.stringify(state.posts));
-
-            state.posts.forEach(post => {
-                const logItem = state.ipLogs.find(log => log.secret_id === post.secret_id);
-                if (logItem) logItem.status = '貼文已刪除 (IP留存中)';
-            });
-            saveIpLogsToStorage();
-
-            let maxCount = parseInt(localStorage.getItem('cy_mock_count') || '0');
-            state.posts.forEach(p => {
-                const match = p.id.match(/\d+/);
-                if (match) {
-                    const num = parseInt(match[0], 10);
-                    if (num > maxCount) maxCount = num;
-                }
-            });
-
-            localStorage.setItem('cy_mock_count', maxCount.toString());
-            state.posts = [];
-            
             closeModal('modal-confirm-delete-all');
-            renderPosts(); // 暫時渲染
+            showNotice('處理中', '正在清空並寫入 GitHub，請稍候...');
+            const r = await apiAction('deleteAllPosts');
 
-            // 等待後端 API 儲存結果
-            showNotice('處理中', '正在清空並同步至伺服器...');
-            const isSuccess = await savePostsToStorage();
-
-            if (isSuccess) {
-                const nextNumStr = '#CY' + String(maxCount + 1).padStart(3, '0');
-                showNotice('全部刪除成功', `所有投稿已被清空並同步至後端！下一次投稿將從 ${nextNumStr} 接續發布。`);
-            } else {
-                state.posts = backupPosts;
+            if (r.ok) {
+                state.posts = r.posts;
+                state.ipLogs = r.ipLogs;
                 renderPosts();
-                showNotice('清空失敗', '無法清空伺服器上的資料，請檢查後端 API 設定。');
+                showNotice('全部刪除成功', `所有投稿已清空並通過驗證！下一次投稿將從 ${r.nextNumber} 接續發布。`);
+            } else {
+                await loadAllData();
+                renderPosts();
+                showNotice('清空失敗', 'JSON 並未被修改：' + r.error);
             }
         }
 
@@ -889,10 +951,16 @@
             document.getElementById('announcement-input').value = state.announcement;
         }
 
-        function saveAnnouncement() {
+        async function saveAnnouncement() {
             state.announcement = document.getElementById('announcement-input').value;
-            localStorage.setItem('cy_aa_json', state.announcement);
-            showNotice('儲存成功', '最新公告內容已更新並同步至 aa.json！');
+            showNotice('處理中', '正在寫入 aa.json...');
+            const r = await queuedSet('aa', () => ({
+                content: escapeHtmlFull(state.announcement).replace(/\n/g, '<br>'),
+                text: state.announcement,
+                updatedAt: new Date().toISOString()
+            }));
+            if (r.ok) showNotice('儲存成功', '最新公告內容已更新並同步至 aa.json！');
+            else showNotice('儲存失敗', '無法寫入 aa.json：' + r.error);
         }
 
         function renderAdminsTable() {
@@ -962,7 +1030,7 @@
             openModal('modal-add-admin');
         }
 
-        function submitAddAdmin() {
+        async function submitAddAdmin() {
             const user = document.getElementById('new-admin-user').value.trim();
             const pass = document.getElementById('new-admin-pass').value.trim();
             const errDiv = document.getElementById('add-admin-error');
@@ -980,54 +1048,39 @@
             }
 
             state.admins.push({ username: user, password: pass, isSuper: false, isDefault: false });
-            saveAdminsToStorage();
+            const r = await saveAdminsToStorage();
+            if (!r.ok) {
+                state.admins.pop();
+                errDiv.textContent = '寫入 ap.json 失敗：' + r.error;
+                errDiv.classList.remove('hidden');
+                return;
+            }
 
             closeModal('modal-add-admin');
             renderAdminsTable();
             showNotice('建立成功', `已建立新管理員 ${user} 並寫入 ap.json！`);
         }
 
-        function deleteAdmin(idx) {
+        async function deleteAdmin(idx) {
             if (state.currentUser !== MASTER_ADMIN) {
                 showNotice('沒有權限', '僅有最高權限帳號可刪除管理員！');
                 return;
             }
+            if (state.admins[idx].username === MASTER_ADMIN || state.admins[idx].isSuper) {
+                showNotice('無法刪除', '主帳號不可刪除！');
+                return;
+            }
+            const backup = state.admins.slice();
             const removed = state.admins.splice(idx, 1);
-            saveAdminsToStorage();
+            const r = await saveAdminsToStorage();
+            if (!r.ok) {
+                state.admins = backup;
+                renderAdminsTable();
+                showNotice('刪除失敗', '無法寫入 ap.json：' + r.error);
+                return;
+            }
             renderAdminsTable();
             showNotice('刪除成功', `已移除管理員 ${removed[0].username}。`);
-        }
-
-        function syncPostsToAkJson() {
-            let updated = false;
-            state.posts.forEach(post => {
-                const existing = state.ipLogs.find(log => log.secret_id === post.secret_id);
-                if (!existing) {
-                    state.ipLogs.push({
-                        id: post.id,
-                        secret_id: post.secret_id,
-                        content: post.content,
-                        ip: post.ip || '127.0.0.1',
-                        timestamp: post.timestamp,
-                        status: '貼文發布中'
-                    });
-                    updated = true;
-                }
-            });
-            if (updated) saveIpLogsToStorage();
-        }
-
-        function cleanExpiredIpLogs() {
-            const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
-            const now = Date.now();
-            const originalLength = state.ipLogs.length;
-
-            state.ipLogs = state.ipLogs.filter(p => {
-                const postTime = new Date(p.timestamp).getTime();
-                return (now - postTime) < ONE_YEAR_MS;
-            });
-
-            if (state.ipLogs.length < originalLength) saveIpLogsToStorage();
         }
 
         function parseIpInfo(rawIpStr) {
@@ -1068,7 +1121,6 @@
         }
 
         function renderIpLogs() {
-            syncPostsToAkJson();
             const searchQuery = (document.getElementById('ip-search-input')?.value || '').trim().toLowerCase();
             const tbody = document.getElementById('ip-logs-table-body');
 
@@ -1114,33 +1166,8 @@
             showNotice('系統提示', '功能尚未完成，敬請期待未來版本更新！');
         }
 
-        // 修改：加入 await 並回傳 true/false，讓前端能確認後端寫入狀態
-        async function savePostsToStorage() {
-            localStorage.setItem('cy_ab_json', JSON.stringify(state.posts));
-            
-            try {
-                const response = await fetch('/api/update-ab', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(state.posts)
-                });
-
-                if (!response.ok) {
-                    throw new Error('伺服器回傳狀態異常');
-                }
-                return true; 
-            } catch (error) {
-                console.warn('同步至伺服器失敗:', error);
-                return false; 
-            }
-        }
-
-        function saveIpLogsToStorage() {
-            localStorage.setItem('cy_ak_json', JSON.stringify(state.ipLogs));
-        }
-
         function saveAdminsToStorage() {
-            localStorage.setItem('cy_ap_json', JSON.stringify(state.admins));
+            return queuedSet('ap', () => state.admins);
         }
 
         function showNotice(title, msg) {
@@ -1167,6 +1194,10 @@
 
         function escapeHtml(str) {
             return str.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        function escapeHtmlFull(str) {
+            return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         }
     </script>
 </body>
