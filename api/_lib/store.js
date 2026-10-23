@@ -17,13 +17,19 @@ const DEFAULTS = {
 const MASTER_ADMIN = 'cvysF133';
 
 function cfg() {
-  const { GITHUB_TOKEN, GITHUB_REPO, GITHUB_BRANCH = 'main', DATA_DIR = 'data' } = process.env;
+  const { GITHUB_TOKEN, GITHUB_BRANCH, DATA_DIR = 'data' } = process.env;
+  // 容錯：允許填完整網址或結尾 .git，例如 https://github.com/name/repo.git
+  const GITHUB_REPO = String(process.env.GITHUB_REPO || '')
+    .trim()
+    .replace(/^https?:\/\/github\.com\//i, '')
+    .replace(/\.git$/i, '')
+    .replace(/^\/+|\/+$/g, '');
   if (!GITHUB_TOKEN || !GITHUB_REPO) {
     const e = new Error('尚未設定環境變數 GITHUB_TOKEN / GITHUB_REPO');
     e.status = 500;
     throw e;
   }
-  return { token: GITHUB_TOKEN, repo: GITHUB_REPO, branch: GITHUB_BRANCH, dir: DATA_DIR.replace(/^\/+|\/+$/g, '') };
+  return { token: GITHUB_TOKEN, repo: GITHUB_REPO, branch: (GITHUB_BRANCH || '').trim(), dir: DATA_DIR.replace(/^\/+|\/+$/g, '') };
 }
 
 function pathOf(key) {
@@ -49,6 +55,39 @@ async function gh(url, { method = 'GET', body, raw = false } = {}) {
   return r;
 }
 
+// 決定要用的分支：有設 GITHUB_BRANCH 就用它；沒設就自動使用 repo 的預設分支
+let branchCache = null;
+async function getBranch() {
+  const { repo, branch } = cfg();
+  if (branch) return branch;
+  if (branchCache) return branchCache;
+  const r = await gh(`/repos/${repo}`);
+  if (!r.ok) throw await repoError(r.status);
+  branchCache = (await r.json()).default_branch;
+  return branchCache;
+}
+
+// 把 404/401/403 轉成看得懂的錯誤說明
+async function repoError(status) {
+  const { repo, branch } = cfg();
+  if (status === 401) return new Error('GITHUB_TOKEN 無效或已過期 (401)，請重新產生 Token 並更新 Vercel 環境變數');
+  const r = await gh(`/repos/${repo}`);
+  if (r.status === 401) return new Error('GITHUB_TOKEN 無效或已過期 (401)，請重新產生 Token 並更新 Vercel 環境變數');
+  if (r.status === 404) {
+    return new Error(`找不到儲存庫「${repo}」：請確認 GITHUB_REPO 格式為「帳號/儲存庫名」；若是私有 repo，Token 必須有授權存取這個 repo（Fine-grained token 需在 Repository access 勾選它，並開啟 Contents: Read and write）`);
+  }
+  if (r.ok) {
+    const info = await r.json();
+    if (branch && branch !== info.default_branch) {
+      return new Error(`找不到分支「${branch}」，此 repo 的預設分支是「${info.default_branch}」。請把 Vercel 的 GITHUB_BRANCH 改成 ${info.default_branch}，或刪除這個環境變數`);
+    }
+    if (info.permissions && info.permissions.push === false) {
+      return new Error('Token 沒有此 repo 的寫入權限，請開啟 Contents: Read and write');
+    }
+  }
+  return new Error(`GitHub 存取失敗 (${status})，請檢查 GITHUB_TOKEN / GITHUB_REPO / GITHUB_BRANCH`);
+}
+
 // 讀取某個 ref（分支名或 commit sha）上的檔案；不存在回傳預設值
 async function readAt(key, ref) {
   const { repo } = cfg();
@@ -61,8 +100,7 @@ async function readAt(key, ref) {
 
 // 讀最新資料（不寫入）
 async function readLatest(key) {
-  const { branch } = cfg();
-  return readAt(key, branch);
+  return readAt(key, await getBranch());
 }
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -74,13 +112,14 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
  * 回傳 updater 的 result
  */
 async function update(updater, message = 'admin: update data') {
-  const { repo, branch } = cfg();
+  const { repo } = cfg();
+  const branch = await getBranch();
   let lastErr;
 
   for (let attempt = 0; attempt < 5; attempt++) {
     // 1. 最新 commit
     const refRes = await gh(`/repos/${repo}/git/ref/heads/${encodeURIComponent(branch)}`);
-    if (!refRes.ok) throw new Error(`找不到分支 ${branch} (${refRes.status}): ${await refRes.text()}`);
+    if (!refRes.ok) throw await repoError(refRes.status);
     const headSha = (await refRes.json()).object.sha;
     const commitRes = await gh(`/repos/${repo}/git/commits/${headSha}`);
     if (!commitRes.ok) throw new Error(`讀取 commit 失敗 (${commitRes.status})`);
