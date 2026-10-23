@@ -923,16 +923,42 @@
                 return;
             }
 
-            const imageUrl = `${window.location.origin}/ad.png`;
+            // 取得目前畫面上合成好的圖卡（背景 ad.png + 投稿文字），轉成 JPEG（Instagram 最穩定的格式）
+            const srcCanvas = document.getElementById('export-canvas');
+            if (!srcCanvas || !srcCanvas.width) {
+                showNotice('提示', '圖卡尚未產生，請先按「匯出圖卡」。');
+                return;
+            }
+            const ratio = srcCanvas.width / srcCanvas.height;
+            if (ratio < 0.8 || ratio > 1.91) {
+                showNotice('圖片比例不符', `圖卡尺寸 ${srcCanvas.width}×${srcCanvas.height} 不符合 Instagram 規定（寬高比需介於 4:5 與 1.91:1），請調整 ad.png 模板尺寸（建議 1080×1350）。`);
+                return;
+            }
+            const flat = document.createElement('canvas');
+            flat.width = srcCanvas.width;
+            flat.height = srcCanvas.height;
+            const fctx = flat.getContext('2d');
+            fctx.fillStyle = '#ffffff';            // JPEG 不支援透明，先墊白底
+            fctx.fillRect(0, 0, flat.width, flat.height);
+            fctx.drawImage(srcCanvas, 0, 0);
+
+            let imageBase64;
+            try {
+                imageBase64 = flat.toDataURL('image/jpeg', 0.92);
+                if (imageBase64.length > 3.2 * 1024 * 1024) imageBase64 = flat.toDataURL('image/jpeg', 0.8); // 避免超過 Vercel 4.5MB 請求上限
+            } catch (e) {
+                showNotice('產生圖片失敗', '無法讀取圖卡內容：' + e.message);
+                return;
+            }
             const caption = `【匿名啟英 CY】${currentActiveCardPost.id}\n\n${currentActiveCardPost.content}\n\n#匿名啟英CY #啟英高中`;
 
-            showNotice('處理中', '正在安全連線至 Vercel Serverless API 發布至 Instagram...');
+            showNotice('處理中', '正在上傳圖卡並發布至 Instagram，約需 10~20 秒...');
 
             try {
                 const response = await fetch('/api/upload-ig', {
                     method: 'POST',
                     headers: authHeaders(),
-                    body: JSON.stringify({ imageUrl, caption })
+                    body: JSON.stringify({ imageBase64, caption })
                 });
 
                 const data = await response.json();
