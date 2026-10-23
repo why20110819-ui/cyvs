@@ -1,9 +1,11 @@
 export default async function handler(req, res) {
+    // 限制只能使用 POST 請求
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
-    const payload = req.body;
+    // 這裡的 payload 是 admin.html 傳過來的「已經刪除特定貼文後」的完整陣列
+    const payload = req.body; 
     const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
     const OWNER = process.env.GITHUB_OWNER;
     const REPO = process.env.GITHUB_REPO;
@@ -14,7 +16,7 @@ export default async function handler(req, res) {
     }
 
     try {
-        // 1. 讀取 GitHub 目前的 ab.json 資料與 sha
+        // 1. 讀取 GitHub 目前的 ab.json 資料，以取得必須的 sha 碼
         const getRes = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}`, {
             headers: {
                 'Authorization': `Bearer ${GITHUB_TOKEN}`,
@@ -22,23 +24,18 @@ export default async function handler(req, res) {
             }
         });
 
-        let currentPosts = [];
         let sha = '';
-
         if (getRes.ok) {
             const fileData = await getRes.json();
-            sha = fileData.sha;
-            // UTF-8 Base64 解碼
-            const contentBuffer = Buffer.from(fileData.content, 'base64').toString('utf-8');
-            currentPosts = JSON.parse(contentBuffer);
+            sha = fileData.sha; // 必須要有 sha 才能更新/覆寫現有檔案
+        } else {
+            return res.status(500).json({ error: '無法讀取遠端檔案以取得 sha' });
         }
 
-        // 2. 將新投稿插入最前面
-        currentPosts.unshift(payload);
+        // 2. 將前端傳來的新陣列轉為 UTF-8 Base64 編碼
+        const newContentBase64 = Buffer.from(JSON.stringify(payload, null, 2), 'utf-8').toString('base64');
 
-        // 3. UTF-8 Base64 編碼並寫回 GitHub
-        const newContentBase64 = Buffer.from(JSON.stringify(currentPosts, null, 2), 'utf-8').toString('base64');
-
+        // 3. 寫回 GitHub（直接覆寫整個檔案）
         const putRes = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}`, {
             method: 'PUT',
             headers: {
@@ -47,9 +44,9 @@ export default async function handler(req, res) {
                 'Accept': 'application/vnd.github.v3+json'
             },
             body: JSON.stringify({
-                message: `新增投稿: ${payload.id}`,
+                message: '系統操作: 更新/刪除投稿',
                 content: newContentBase64,
-                sha: sha || undefined
+                sha: sha // 傳入舊檔案的 sha 才能成功覆寫
             })
         });
 
@@ -58,7 +55,7 @@ export default async function handler(req, res) {
             throw new Error(errData.message || '寫入 GitHub 失敗');
         }
 
-        return res.status(200).json({ success: true, message: '投稿成功' });
+        return res.status(200).json({ success: true, message: '同步更新成功' });
     } catch (err) {
         return res.status(500).json({ error: err.message });
     }
