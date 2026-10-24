@@ -142,5 +142,13 @@
     "ip": "182.235.50.200 (Mozilla/5.0 (iPhone; CPU iPhone OS 27_0_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/24A446 Instagram 452.0.1.39.54 (iPhone15,4; iOS 27_0_1; zh_TW; zh-Hant; scale=3.00; 1179x2556; IABMV/1; 1093431980) Safari/604.1)",
     "timestamp": "2026-10-24T05:05:36.296Z",
     "status": "貼文已刪除 (IP留存中)"
+  },
+  {
+    "id": "#CY015",
+    "secret_id": "673870",
+    "content": "debug",
+    "ip": "180.177.226.179 (Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36 Edg/155.0.0.0)",
+    "timestamp": "2026-10-24T07:46:30.603Z",
+    "status": "貼文發布中"
   }
 ]
