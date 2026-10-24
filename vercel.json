@@ -4,13 +4,21 @@
     { "source": "/data/ab.json", "destination": "/", "permanent": false },
     { "source": "/data/ak.json", "destination": "/", "permanent": false },
     { "source": "/data/ap.json", "destination": "/", "permanent": false },
-    { "source": "/data/am.json", "destination": "/", "permanent": false }
+    { "source": "/data/am.json", "destination": "/", "permanent": false },
+    { "source": "/data/build/:path*", "destination": "/", "permanent": false }
   ],
   "headers": [
     {
       "source": "/data/logo.png",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=86400, stale-while-revalidate=604800" }
+      ]
+    },
+    {
+      "source": "/data/os",
+      "headers": [
+        { "key": "Content-Type", "value": "text/plain; charset=utf-8" },
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
       ]
     }
   ]
