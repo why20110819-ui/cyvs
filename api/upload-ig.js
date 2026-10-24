@@ -13,13 +13,25 @@ function clean(v) {
   return String(v || '').trim().replace(/^["'`]+|["'`]+$/g, '').trim();
 }
 
-function friendlyError(err, token) {
+function friendlyError(err, stage) {
   const msg = (err && err.message) || 'Unknown error';
   const code = err && err.code;
+  const sub = err && err.error_subcode;
+  const tag = ` [Meta 錯誤碼 ${code ?? '?'}${sub ? '/' + sub : ''}，發生在「${stage}」階段${err && err.fbtrace_id ? '，trace ' + err.fbtrace_id : ''}]`;
+  return explain(msg, code, sub) + tag;
+}
+
+function explain(msg, code, sub) {
+  // 被 Meta 暫時封鎖 / 限流（不是缺權限）
+  if (/blocked/i.test(msg) || code === 4 || code === 17 || code === 32 || code === 613 || sub === 2207051) {
+    return `Meta 暫時封鎖了這個 API 存取（${msg}）。常見於短時間內重複發文或測試太多次、被判定為可疑行為、或 App/帳號被限制。請先停止嘗試 30~60 分鐘再試；若持續出現，請到 Meta 開發者後台檢查 App 是否有警示或限制，並檢查 Instagram 帳號狀態。`;
+  }
+  if (sub === 2207042 || code === 9) return `已達 Instagram 24 小時內 API 發文上限（${msg}），請明天再試。`;
+  if (sub === 2207050 || sub === 2207008 || code === 25) return `Instagram 帳號被限制或無法使用（${msg}）。請到 Instagram 帳號狀態檢查是否有警示。`;
   if (code === 190 || /access token/i.test(msg)) {
     return `Instagram Token 無效或已過期：${msg}。請重新產生 Token，更新 Vercel 的 IG_ACCESS_TOKEN（前後不可有空白或引號），並重新部署。`;
   }
-  if (code === 10 || code === 200) return `權限不足：${msg}。請確認 Token 具有 instagram_content_publish 權限。`;
+  if (code === 10 || code === 200) return `權限不足或授權被拒：${msg}。請確認 Token 具有 instagram_content_publish 權限，且 Instagram 帳號是商業/創作者帳號並已連結到 Facebook 粉絲專頁。`;
   if (/aspect ratio/i.test(msg)) return `圖片比例不符：${msg}。Instagram 只接受寬高比 4:5 到 1.91:1 的圖片（1080×1350 最理想）。`;
   if (code === 9004 || code === 9007 || /media/i.test(msg) && /uri|url|fetch|type/i.test(msg)) {
     return `Instagram 無法讀取圖片：${msg}。請確認圖片是公開、可直接開啟的 JPEG 網址。`;
@@ -131,7 +143,7 @@ module.exports = async (req, res) => {
     if (!container.id) {
       const e = container.error || {};
       await cleanup();
-      return res.status(500).json({ success: false, error: friendlyError(e, token), detail: { code: e.code, subcode: e.error_subcode, imageUrl } });
+      return res.status(500).json({ success: false, error: friendlyError(e, '建立貼文'), detail: { code: e.code, subcode: e.error_subcode, imageUrl } });
     }
 
     // 5. 等 Container 處理完成（最多約 10 秒）
@@ -152,7 +164,7 @@ module.exports = async (req, res) => {
     await cleanup();
     if (!published.id) {
       const e = published.error || {};
-      return res.status(500).json({ success: false, error: friendlyError(e, token), detail: { code: e.code, subcode: e.error_subcode } });
+      return res.status(500).json({ success: false, error: friendlyError(e, '發布'), detail: { code: e.code, subcode: e.error_subcode } });
     }
 
     return res.status(200).json({ success: true, postId: published.id });
