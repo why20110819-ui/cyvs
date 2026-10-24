@@ -332,6 +332,10 @@
                 <button onclick="triggerIgUpload()" class="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg flex justify-center items-center gap-2 text-sm">
                     發布至 Instagram 貼文
                 </button>
+
+                <button onclick="checkIgConnection()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium py-2.5 rounded-xl transition-all border border-slate-700 text-xs">
+                    檢查 Instagram 連線狀態
+                </button>
             </div>
         </div>
     </div>
@@ -1196,9 +1200,22 @@
             return queuedSet('ap', () => state.admins);
         }
 
+        async function checkIgConnection() {
+            showNotice('檢查中', '正在檢查 Instagram 連線，請稍候...');
+            try {
+                const res = await fetch('/api/ig-check', { method: 'POST', headers: authHeaders(), body: '{}' });
+                const data = await res.json().catch(() => ({}));
+                showNotice(data.ok ? 'Instagram 連線正常' : 'Instagram 連線檢查結果', data.report || data.error || ('HTTP ' + res.status));
+            } catch (e) {
+                showNotice('檢查失敗', e.message);
+            }
+        }
+
         function showNotice(title, msg) {
             document.getElementById('notice-title').textContent = title;
-            document.getElementById('notice-msg').textContent = msg;
+            const nm = document.getElementById('notice-msg');
+            nm.textContent = msg;
+            nm.style.whiteSpace = 'pre-line';
             openModal('modal-notice');
         }
 
