@@ -1,5 +1,17 @@
 {
   "redirects": [
-    { "source": "/data/:path*", "destination": "/", "permanent": false }
+    { "source": "/data/aa.json", "destination": "/", "permanent": false },
+    { "source": "/data/ab.json", "destination": "/", "permanent": false },
+    { "source": "/data/ak.json", "destination": "/", "permanent": false },
+    { "source": "/data/ap.json", "destination": "/", "permanent": false },
+    { "source": "/data/am.json", "destination": "/", "permanent": false }
+  ],
+  "headers": [
+    {
+      "source": "/data/logo.png",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400, stale-while-revalidate=604800" }
+      ]
+    }
   ]
 }
