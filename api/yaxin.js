@@ -134,13 +134,22 @@ function parseTables(html, kind) {
   return [];
 }
 
+async function schoolFetch(url, options, stage) {
+  try {
+    return await fetch(url, { ...options, signal: AbortSignal.timeout(20000) });
+  } catch (error) {
+    const code = error?.cause?.code || error?.code || 'unknown';
+    throw new Error(`亞昕連線失敗（${stage}）：${error.message || 'fetch failed'} [${code}]`);
+  }
+}
+
 async function loginToSchool(username, password) {
   const common = { 'User-Agent': USER_AGENT, Accept: 'text/html,application/xhtml+xml' };
-  const first = await fetch(LOGIN_URL, { headers: common });
+  const first = await schoolFetch(LOGIN_URL, { headers: common }, '取得登入頁');
   const firstHtml = await first.text();
   const initialCookies = mergeCookies(getSetCookieHeaders(first.headers));
   const form = new URLSearchParams({ ...hiddenFields(firstHtml), UserId: username, Pswd: password, BtnLogin: '登入', clientbrowser: 'Chrome156.0.0.0' });
-  const second = await fetch(LOGIN_URL, { method: 'POST', redirect: 'manual', headers: { ...common, 'Content-Type': 'application/x-www-form-urlencoded', Cookie: initialCookies, Referer: LOGIN_URL }, body: form.toString() });
+  const second = await schoolFetch(LOGIN_URL, { method: 'POST', redirect: 'manual', headers: { ...common, 'Content-Type': 'application/x-www-form-urlencoded', Cookie: initialCookies, Referer: LOGIN_URL }, body: form.toString() }, '送出登入表單');
   const secondHtml = await second.text();
   const allCookies = mergeCookies(initialCookies, getSetCookieHeaders(second.headers));
   if (!allCookies) throw new Error('亞昕未回傳登入 Cookie');
@@ -150,12 +159,12 @@ async function loginToSchool(username, password) {
 
 async function querySchool(session, kind, suppliedTarget) {
   const firstUrl = absoluteTarget(suppliedTarget || DEFAULT_TARGET);
-  const first = await fetch(firstUrl, { headers: { 'User-Agent': USER_AGENT, Cookie: session.cookieHeader, Accept: 'text/html,application/xhtml+xml' } });
+  const first = await schoolFetch(firstUrl, { headers: { 'User-Agent': USER_AGENT, Cookie: session.cookieHeader, Accept: 'text/html,application/xhtml+xml' } }, '取得查詢入口');
   const firstHtml = await first.text();
   const code = kind === 'rewards' ? 'DCS01' : 'DDS01';
   const target = moduleLink(firstHtml, code);
   const finalUrl = absoluteTarget(target);
-  const response = target === firstUrl ? first : await fetch(finalUrl, { headers: { 'User-Agent': USER_AGENT, Cookie: session.cookieHeader, Referer: firstUrl, Accept: 'text/html,application/xhtml+xml' } });
+  const response = target === firstUrl ? first : await schoolFetch(finalUrl, { headers: { 'User-Agent': USER_AGENT, Cookie: session.cookieHeader, Referer: firstUrl, Accept: 'text/html,application/xhtml+xml' } }, `取得${kind === 'rewards' ? '獎懲' : '出缺勤'}頁`);
   const html = target === firstUrl ? firstHtml : await response.text();
   return { records: parseTables(html, kind), source: finalUrl, title: kind === 'rewards' ? '獎懲查詢' : '出缺勤查詢' };
 }

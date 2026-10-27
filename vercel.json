@@ -1,4 +1,5 @@
 {
+  "regions": ["hkg1"],
   "redirects": [
     { "source": "/data/aa.json", "destination": "/", "permanent": false },
     { "source": "/data/ab.json", "destination": "/", "permanent": false },
