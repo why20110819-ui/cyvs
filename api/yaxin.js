@@ -58,13 +58,17 @@ function decryptSession(value) {
 }
 
 function setSessionCookie(req, token) {
-  const secure = String(req.headers.host || '').startsWith('localhost') ? '' : ' Secure;';
-  return `${SESSION_NAME}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_SECONDS};${secure}`;
+  const local = String(req.headers.host || '').startsWith('localhost');
+  const secure = local ? '' : ' Secure;';
+  const sameSite = local ? 'Lax' : 'None';
+  return `${SESSION_NAME}=${token}; Path=/; HttpOnly; SameSite=${sameSite}; Max-Age=${SESSION_SECONDS};${secure}`;
 }
 
 function clearSessionCookie(req) {
-  const secure = String(req.headers.host || '').startsWith('localhost') ? '' : ' Secure;';
-  return `${SESSION_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0;${secure}`;
+  const local = String(req.headers.host || '').startsWith('localhost');
+  const secure = local ? '' : ' Secure;';
+  const sameSite = local ? 'Lax' : 'None';
+  return `${SESSION_NAME}=; Path=/; HttpOnly; SameSite=${sameSite}; Max-Age=0;${secure}`;
 }
 
 function getSetCookieHeaders(headers) {
