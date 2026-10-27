@@ -117,9 +117,20 @@ function stripTags(value) {
 }
 
 function moduleLink(html, code) {
-  const matches = [...String(html).matchAll(/(?:href|action)=["']([^"']+)["']/gi)];
+  const source = String(html);
+  const matches = [...source.matchAll(/(?:href|action|onclick|data-url|data-href|src)=["']([^"']+)["']/gi)];
   const found = matches.find(m => new RegExp(code, 'i').test(m[1]));
-  return found ? decodeHtml(found[1]) : DEFAULT_TARGET;
+  if (found) {
+    const url = found[1].match(/(?:https?:\/\/[^'"\s]+|\/[^'"\s]+\.(?:aspx|ashx|asmx)(?:\?[^'"\s]*)?)/i);
+    if (url) return decodeHtml(url[0]);
+  }
+  const index = source.search(new RegExp(code, 'i'));
+  if (index >= 0) {
+    const context = source.slice(Math.max(0, index - 700), index + 1200);
+    const url = context.match(/(?:https?:\/\/[^'"\s]+|\/[^'"\s]+\.(?:aspx|ashx|asmx)(?:\?[^'"\s]*)?)/i);
+    if (url) return decodeHtml(url[0]);
+  }
+  return '';
 }
 
 function absoluteTarget(target) {
@@ -220,6 +231,7 @@ async function querySchool(session, kind, suppliedTarget) {
   const firstHtml = await first.text();
   const code = kind === 'rewards' ? 'DCS01' : 'DDS01';
   const target = moduleLink(firstHtml, code);
+  if (!target) throw new Error(`亞昕查詢入口未提供 ${code} 功能頁，避免誤讀首頁公告`);
   const finalUrl = absoluteTarget(target);
   const response = target === firstUrl ? first : await schoolFetch(finalUrl, { headers: { 'User-Agent': USER_AGENT, Cookie: session.cookieHeader, Referer: firstUrl, Accept: 'text/html,application/xhtml+xml' } }, `取得${kind === 'rewards' ? '獎懲' : '出缺勤'}頁`);
   const html = target === firstUrl ? firstHtml : await response.text();
