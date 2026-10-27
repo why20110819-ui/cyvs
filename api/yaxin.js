@@ -1,6 +1,8 @@
 const crypto = require('crypto');
+const https = require('https');
 
 const SCHOOL_ORIGIN = 'https://sch.cyvs.tyc.edu.tw';
+const SCHOOL_IP = process.env.YAXIN_ORIGIN_IP || '210.59.41.220';
 const LOGIN_URL = `${SCHOOL_ORIGIN}/SCH_UI/`;
 const DEFAULT_TARGET = '/SCH_UI/SSO/SIndex.aspx?AsParam=X0Z3UzJuJWU1JTg2JWE5JWU1JThhJWFiJWU3JThjJTlhJWU2JTg2JWIzZkxUVWtPVyUxN28lN2QlN2MlMGIlN2IlMDUlMDMlN2IlMDElMDIlMTZXV1o5dTIlM2MlMjc4MyUxNSVlNSVhZCU4OSVlNyU5NCVhYw==';
 const SESSION_NAME = 'yaxin_session';
@@ -139,8 +141,54 @@ async function schoolFetch(url, options, stage) {
     return await fetch(url, { ...options, signal: AbortSignal.timeout(20000) });
   } catch (error) {
     const code = error?.cause?.code || error?.code || 'unknown';
+    if (code === 'ENOTFOUND' || /fetch failed/i.test(error.message || '')) {
+      try {
+        return await httpsFallback(url, options);
+      } catch (fallbackError) {
+        const fallbackCode = fallbackError?.code || fallbackError?.cause?.code || 'unknown';
+        throw new Error(`亞昕連線失敗（${stage}）：DNS 無法解析，固定 IP fallback 也失敗：${fallbackError.message || 'fetch failed'} [${fallbackCode}]`);
+      }
+    }
     throw new Error(`亞昕連線失敗（${stage}）：${error.message || 'fetch failed'} [${code}]`);
   }
+}
+
+function httpsFallback(url, options = {}) {
+  return new Promise((resolve, reject) => {
+    const target = new URL(url);
+    const request = https.request({
+      protocol: target.protocol,
+      hostname: target.hostname,
+      port: target.port || 443,
+      path: `${target.pathname}${target.search}`,
+      method: options.method || 'GET',
+      headers: options.headers || {},
+      servername: target.hostname,
+      lookup: (_hostname, _options, callback) => callback(null, SCHOOL_IP, 4),
+      rejectUnauthorized: true,
+    }, response => {
+      const chunks = [];
+      response.on('data', chunk => chunks.push(chunk));
+      response.on('end', () => {
+        const rawHeaders = response.rawHeaders || [];
+        const setCookies = [];
+        for (let i = 0; i < rawHeaders.length; i += 2) {
+          if (String(rawHeaders[i]).toLowerCase() === 'set-cookie') setCookies.push(rawHeaders[i + 1]);
+        }
+        const headerMap = new Map();
+        for (let i = 0; i < rawHeaders.length; i += 2) headerMap.set(String(rawHeaders[i]).toLowerCase(), rawHeaders[i + 1]);
+        resolve({
+          status: response.statusCode,
+          headers: { get: name => headerMap.get(String(name).toLowerCase()) || null, getSetCookie: () => setCookies },
+          text: async () => Buffer.concat(chunks).toString('utf8'),
+        });
+      });
+    });
+    request.setTimeout(20000, () => request.destroy(new Error('request timeout')));
+    request.on('error', reject);
+    if (options.body) request.write(options.body);
+    request.end();
+  });
 }
 
 async function loginToSchool(username, password) {
