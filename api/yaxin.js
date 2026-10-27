@@ -1,8 +1,10 @@
 const crypto = require('crypto');
 const https = require('https');
+const net = require('net');
 
 const SCHOOL_ORIGIN = 'https://sch.cyvs.tyc.edu.tw';
-const SCHOOL_IP = process.env.YAXIN_ORIGIN_IP || '210.59.41.220';
+const configuredSchoolIp = String(process.env.YAXIN_ORIGIN_IP || '').trim();
+const SCHOOL_IP = net.isIP(configuredSchoolIp) === 4 ? configuredSchoolIp : '210.59.41.220';
 const LOGIN_URL = `${SCHOOL_ORIGIN}/SCH_UI/`;
 const DEFAULT_TARGET = '/SCH_UI/SSO/SIndex.aspx?AsParam=X0Z3UzJuJWU1JTg2JWE5JWU1JThhJWFiJWU3JThjJTlhJWU2JTg2JWIzZkxUVWtPVyUxN28lN2QlN2MlMGIlN2IlMDUlMDMlN2IlMDElMDIlMTZXV1o5dTIlM2MlMjc4MyUxNSVlNSVhZCU4OSVlNyU5NCVhYw==';
 const SESSION_NAME = 'yaxin_session';
@@ -164,7 +166,10 @@ function httpsFallback(url, options = {}) {
       method: options.method || 'GET',
       headers: options.headers || {},
       servername: target.hostname,
-      lookup: (_hostname, _options, callback) => callback(null, SCHOOL_IP, 4),
+      lookup: (_hostname, lookupOptions, callback) => {
+        if (lookupOptions && lookupOptions.all) return callback(null, [{ address: SCHOOL_IP, family: 4 }]);
+        return callback(null, SCHOOL_IP, 4);
+      },
       rejectUnauthorized: true,
     }, response => {
       const chunks = [];
