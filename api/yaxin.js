@@ -141,7 +141,7 @@ function absoluteTarget(target) {
 }
 
 function parseTables(html, kind) {
-  const tables = [...String(html).matchAll(/<table\b[^>]*>([\s\S]*?)<\/table>/gi)].map(x => x[1]);
+  const tables = [...String(html).matchAll(/<table\b[^>]*>([\s\S]*?)<\/table>/gi)].map(x => x[1]).filter(table => !/校務更新通知|常見問題Q&A|標為已讀不顯示|公告內容/i.test(table));
   const keywords = kind === 'rewards' ? /獎懲|獎勵|懲處|嘉獎|小功|警告/i : /出缺勤|缺勤|遲到|曠課|事假|病假/i;
   const ranked = tables.sort((a, b) => Number(keywords.test(b)) - Number(keywords.test(a)));
   for (const table of ranked) {
